@@ -1,0 +1,257 @@
+/*
+ * Evangelist control bar styling.
+ *
+ * Loaded into the bar's shadow root by content/bar-ui.js, never into
+ * the host document. Two rules follow from that. First, `:host` starts
+ * with `all: initial` so a hostile or merely enthusiastic page cannot
+ * push inherited values into the bar. Second, every class here is
+ * prefixed `tc-` even though the shadow boundary already isolates it,
+ * because the convention is what makes an accidental leak obvious.
+ *
+ * The bar sits over arbitrary pages, so it commits to its own colours
+ * rather than borrowing any, and follows the reader's light or dark
+ * preference.
+ *
+ * MIT License (see: LICENSE)
+ * Copyright (C) 2026 Tomaz Stih
+ */
+
+:host {
+    all: initial;
+
+    position: fixed !important;
+    right: 16px !important;
+    bottom: 16px !important;
+    /* Above everything a page can plausibly stack. */
+    z-index: 2147483647 !important;
+
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto,
+        "Helvetica Neue", sans-serif !important;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+
+    --tc-bg: #ffffff;
+    --tc-fg: #1f2328;
+    --tc-muted: #57606a;
+    --tc-border: #d0d7de;
+    --tc-btn-bg: #f6f8fa;
+    --tc-btn-fg: #1f2328;
+    --tc-accent: #0969da;
+    --tc-live: #cf222e;
+    --tc-paused: #bf8700;
+    --tc-idle: #8c959f;
+    --tc-shadow: 0 4px 16px rgba(31, 35, 40, 0.18);
+}
+
+/*
+ * The host element carries `hidden` when the bar is dismissed. An
+ * author rule on :host outranks the user agent's [hidden] style, so
+ * the hiding has to be stated here explicitly.
+ */
+:host([hidden]) {
+    display: none !important;
+}
+
+@media (prefers-color-scheme: dark) {
+    :host {
+        --tc-bg: #1c2128;
+        --tc-fg: #e6edf3;
+        --tc-muted: #9198a1;
+        --tc-border: #3d444d;
+        --tc-btn-bg: #2a313c;
+        --tc-btn-fg: #e6edf3;
+        --tc-accent: #4493f8;
+        --tc-live: #ff7b72;
+        --tc-paused: #e3b341;
+        --tc-idle: #6e7681;
+        --tc-shadow: 0 4px 16px rgba(1, 4, 9, 0.6);
+    }
+}
+
+.tc-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-sizing: border-box;
+    max-width: min(680px, calc(100vw - 32px));
+    padding: 8px 10px;
+    border: 1px solid var(--tc-border);
+    border-radius: 10px;
+    background: var(--tc-bg);
+    color: var(--tc-fg);
+    box-shadow: var(--tc-shadow);
+}
+
+/* Status light. Its colour is the fastest read of what is going on. */
+.tc-dot {
+    flex: none;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--tc-idle);
+}
+
+.tc-bar[data-state="live"] .tc-dot {
+    background: var(--tc-live);
+    animation: tc-pulse 2s ease-in-out infinite;
+}
+
+.tc-bar[data-state="paused"] .tc-dot {
+    background: var(--tc-paused);
+}
+
+.tc-bar[data-state="error"] .tc-dot {
+    background: var(--tc-live);
+}
+
+.tc-bar[data-state="foreign"] .tc-dot {
+    background: var(--tc-accent);
+}
+
+@keyframes tc-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; }
+}
+
+/* A reader who asked for less motion gets a steady light instead. */
+@media (prefers-reduced-motion: reduce) {
+    .tc-bar[data-state="live"] .tc-dot {
+        animation: none;
+    }
+}
+
+.tc-brand {
+    flex: none;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.tc-actions {
+    flex: none;
+    display: flex;
+    gap: 6px;
+}
+
+.tc-btn {
+    font: inherit;
+    padding: 4px 12px;
+    border: 1px solid var(--tc-border);
+    border-radius: 6px;
+    background: var(--tc-btn-bg);
+    color: var(--tc-btn-fg);
+    cursor: pointer;
+}
+
+.tc-btn:hover:not(:disabled) {
+    border-color: var(--tc-accent);
+}
+
+.tc-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.tc-start:not(:disabled) {
+    border-color: var(--tc-accent);
+    color: var(--tc-accent);
+    font-weight: 600;
+}
+
+.tc-stop:not(:disabled) {
+    border-color: var(--tc-live);
+    color: var(--tc-live);
+    font-weight: 600;
+}
+
+/* Refresh interval: label, slider, and the seconds readout. */
+.tc-interval {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-left: 10px;
+    border-left: 1px solid var(--tc-border);
+}
+
+.tc-label {
+    color: var(--tc-muted);
+}
+
+.tc-slider {
+    width: 110px;
+    margin: 0;
+    accent-color: var(--tc-accent);
+    cursor: pointer;
+}
+
+.tc-seconds {
+    min-width: 40px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--tc-fg);
+}
+
+/*
+ * The status line is the only part with variable length, so it is the
+ * only part allowed to shrink and ellipsise. The full text, which for
+ * an error is the whole message, stays available as a tooltip.
+ */
+.tc-status {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-left: 10px;
+    border-left: 1px solid var(--tc-border);
+    color: var(--tc-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tc-bar[data-state="error"] .tc-status {
+    color: var(--tc-live);
+}
+
+.tc-hide {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--tc-muted);
+    font: inherit;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.tc-hide:hover {
+    background: var(--tc-btn-bg);
+    color: var(--tc-fg);
+}
+
+.tc-btn:focus-visible,
+.tc-hide:focus-visible,
+.tc-slider:focus-visible {
+    outline: 2px solid var(--tc-accent);
+    outline-offset: 2px;
+}
+
+/*
+ * Narrow viewports: let the bar wrap onto a second line rather than
+ * stretch past the edge of the screen.
+ */
+@media (max-width: 640px) {
+    .tc-bar {
+        flex-wrap: wrap;
+        max-width: calc(100vw - 32px);
+    }
+
+    .tc-status {
+        flex-basis: 100%;
+        padding-left: 0;
+        border-left: 0;
+    }
+}

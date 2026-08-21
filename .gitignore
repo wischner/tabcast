@@ -1,0 +1,16 @@
+# Build artifacts. Every project keeps them under its own build/, and
+# finished programs under bin/.
+build/
+bin/
+
+# Editor and OS noise.
+*~
+*.swp
+*.orig
+*.rej
+.DS_Store
+
+# Compiler leftovers, in case anything is ever built outside build/.
+*.o
+*.d
+*.a

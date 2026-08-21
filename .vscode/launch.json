@@ -1,0 +1,47 @@
+{
+    // F5 debugging for the C++ parts. Needs the C/C++ extension
+    // (ms-vscode.cpptools). The debug build links the address and
+    // undefined behaviour sanitizers, so a bad access stops here with
+    // a report rather than somewhere later with a corrupted heap.
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug apostle",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/apostle/bin/apostle",
+            "args": [],
+            "cwd": "${workspaceFolder}/apostle",
+            "stopAtEntry": false,
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "preLaunchTask": "build apostle",
+            "setupCommands": [
+                {
+                    "description": "Pretty printing for the standard library",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "Debug disciple",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/disciple/bin/disciple",
+            "args": [],
+            "cwd": "${workspaceFolder}/disciple",
+            "stopAtEntry": false,
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "preLaunchTask": "build disciple",
+            "setupCommands": [
+                {
+                    "description": "Pretty printing for the standard library",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,14 @@
+{
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "evangelist@tabcast.wischner.co.uk",
+            "strict_min_version": "115.0"
+        }
+    },
+    "background": {
+        "scripts": [
+            "background/background.js"
+        ],
+        "type": "module"
+    }
+}

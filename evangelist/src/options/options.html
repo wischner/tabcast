@@ -1,0 +1,124 @@
+<!--
+    Evangelist settings page.
+
+    Opened from the browser's add-on manager, and from the toolbar
+    button on pages where no control bar could be injected. Every
+    control here autosaves, which keeps this page and the on-page
+    refresh slider from disagreeing about who owns a value.
+
+    MIT License (see: LICENSE)
+    Copyright (C) 2026 Tomaz Stih
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evangelist settings</title>
+<link rel="stylesheet" href="options.css">
+
+<main class="page">
+    <header class="head">
+        <h1>Evangelist</h1>
+        <p class="sub">
+            Captures the visible tab and hands it to the Apostle daemon,
+            which broadcasts it to every e-ink reader in the flock.
+        </p>
+    </header>
+
+    <section class="card">
+        <h2>Apostle daemon</h2>
+        <p class="hint">
+            Where the local daemon listens. Evangelist only ever talks to
+            your own machine. Everything that leaves this computer leaves
+            it through Apostle.
+        </p>
+
+        <div class="row">
+            <label class="field">
+                <span>Host</span>
+                <input id="host" type="text" spellcheck="false"
+                       autocomplete="off" placeholder="127.0.0.1">
+            </label>
+            <label class="field narrow">
+                <span>Port</span>
+                <input id="port" type="number" min="1" max="65535"
+                       step="1" placeholder="8420">
+            </label>
+        </div>
+
+        <div class="row">
+            <button id="probe" type="button" class="btn">
+                Test connection
+            </button>
+            <output id="probe-result" class="result"></output>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Capture</h2>
+
+        <label class="field">
+            <span>
+                Refresh every
+                <output id="interval-value" class="value">10s</output>
+            </span>
+            <input id="interval" type="range" min="2" max="300" step="1">
+        </label>
+        <p class="hint">
+            The same setting as the slider on the control bar. E-ink
+            panels take about a second to redraw, so anything under five
+            seconds mostly buys you flicker.
+        </p>
+
+        <div class="row">
+            <label class="field narrow">
+                <span>Format</span>
+                <select id="format">
+                    <option value="png">PNG, lossless</option>
+                    <option value="jpeg">JPEG, smaller</option>
+                </select>
+            </label>
+            <label class="field narrow" id="quality-field">
+                <span>
+                    JPEG quality
+                    <output id="quality-value" class="value">80</output>
+                </span>
+                <input id="quality" type="range" min="10" max="100"
+                       step="5">
+            </label>
+        </div>
+        <p class="hint">
+            PNG is the right default. A grey e-ink panel shows JPEG ringing
+            around text far more clearly than a colour screen does.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Behaviour</h2>
+
+        <label class="check">
+            <input id="skip-unchanged" type="checkbox">
+            <span>
+                Skip frames identical to the previous one
+                <em>Saves a slow, visible panel refresh on every reader
+                    when the page has not changed.</em>
+            </span>
+        </label>
+
+        <label class="check">
+            <input id="show-bar" type="checkbox">
+            <span>
+                Show the control bar on pages
+                <em>With this off, the toolbar button still brings the bar
+                    back on the page you are looking at.</em>
+            </span>
+        </label>
+    </section>
+
+    <footer class="foot">
+        <button id="reset" type="button" class="btn">
+            Restore defaults
+        </button>
+        <output id="saved" class="saved" aria-live="polite"></output>
+    </footer>
+</main>
+
+<script type="module" src="options.js"></script>
