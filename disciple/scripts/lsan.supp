@@ -1,0 +1,23 @@
+# LeakSanitizer suppressions for the debug build of the test client.
+#
+# GTK, GLib, and their dependencies allocate caches, type registrations,
+# and theme data once at startup and never free them. That is by design
+# in a library that expects the process to end, but the debug build
+# links the address sanitizer, so every windowed run would otherwise
+# finish with a page of leak reports and exit non-zero.
+#
+# Suppressed by library name rather than by turning leak detection off,
+# so a leak in Disciple's own code is still reported. Used by
+# `make run` and by the VS Code launch configuration.
+#
+# MIT License (see: LICENSE)
+# Copyright (C) 2026 Tomaz Stih
+#
+leak:libgtk-3
+leak:libgdk-3
+leak:libgdk_pixbuf
+leak:libglib-2.0
+leak:libgobject-2.0
+leak:libgio-2.0
+leak:libfontconfig
+leak:libpango

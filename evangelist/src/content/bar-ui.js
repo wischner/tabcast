@@ -18,6 +18,12 @@
 (function (root) {
     const { api, LIMITS, ROOT_ID } = root.TC;
 
+    // Circumference of the countdown ring, for a circle of radius 10
+    // in the SVG's 24 unit view box. The ring is drawn as a single
+    // dash this long, and shortened by moving the dash offset, which
+    // is the cheapest way to animate an arc without redrawing a path.
+    const RING_CIRCUMFERENCE = 2 * Math.PI * 10;
+
     //
     // Build the control bar and attach it to the document.
     //
@@ -66,9 +72,14 @@
             stop: bar.querySelector(".tc-stop"),
             slider: bar.querySelector(".tc-slider"),
             seconds: bar.querySelector(".tc-seconds"),
+            countdown: bar.querySelector(".tc-countdown"),
+            countdownValue: bar.querySelector(".tc-countdown-value"),
+            ringFill: bar.querySelector(".tc-ring-fill"),
             status: bar.querySelector(".tc-status"),
             hide: bar.querySelector(".tc-hide")
         };
+
+        refs.ringFill.style.strokeDasharray = RING_CIRCUMFERENCE.toFixed(2);
 
         refs.start.addEventListener("click", () => handlers.onStart());
         refs.stop.addEventListener("click", () => handlers.onStop());
@@ -98,22 +109,27 @@
     //                        status,           one line of text
     //                        tooltip,          hover text, may be ""
     //                        intervalSeconds,  slider position
+    //                        countdown,        see paintCountdown()
     //                        canStart, canStop,
     //                        hidden            hide the whole bar
     //                    }
     //
     // Notes:
-    //      Idempotent. Called on every state change and once a second
-    //      while a broadcast is live, so it must stay cheap and must
-    //      not fight the user for the slider handle.
+    //      Idempotent. Called on every state change and four times a
+    //      second while a broadcast is live, to drive the countdown.
+    //      That is why every text write goes through setText(): at
+    //      that rate, rewriting a text node with the string it
+    //      already holds is a needless DOM mutation on somebody
+    //      else's page.
     //
     function paint(refs, model) {
         refs.host.hidden = model.hidden;
         refs.bar.dataset.state = model.state;
         refs.start.disabled = !model.canStart;
         refs.stop.disabled = !model.canStop;
-        refs.status.textContent = model.status;
+        setText(refs.status, model.status);
         refs.status.title = model.tooltip ?? "";
+        paintCountdown(refs, model.countdown);
 
         // Leave the handle alone while it has focus, which is the
         // case throughout a drag. Repainting it then would snap it
@@ -122,6 +138,53 @@
             refs.slider.value = String(model.intervalSeconds);
         }
         setSeconds(refs, model.intervalSeconds);
+    }
+
+    //
+    // Paint the countdown to the next capture.
+    //
+    // Parameters:
+    //      refs        - Object returned by build().
+    //      countdown   - {
+    //                        visible,   show it at all
+    //                        seconds,   whole seconds remaining
+    //                        fraction,  1 just after a capture,
+    //                                   0 when the next one is due
+    //                        sending    a capture is in flight
+    //                    }
+    //
+    // Notes:
+    //      The ring drains clockwise as the wait runs down. While a
+    //      frame is actually being sent there is nothing left to
+    //      count, so the ring becomes a spinner instead of sitting
+    //      at zero looking stalled.
+    //
+    function paintCountdown(refs, countdown) {
+        refs.countdown.hidden = !countdown.visible;
+        if (!countdown.visible) {
+            return;
+        }
+
+        refs.countdown.dataset.state =
+            countdown.sending ? "sending" : "waiting";
+        setText(refs.countdownValue, String(countdown.seconds));
+
+        const remaining = Math.min(1, Math.max(0, countdown.fraction));
+        refs.ringFill.style.strokeDashoffset =
+            (RING_CIRCUMFERENCE * (1 - remaining)).toFixed(2);
+    }
+
+    //
+    // Write text into an element, but only when it would change.
+    //
+    // Parameters:
+    //      element     - Target element.
+    //      text        - New text content.
+    //
+    function setText(element, text) {
+        if (element.textContent !== text) {
+            element.textContent = text;
+        }
     }
 
     //
@@ -137,7 +200,7 @@
     //      committed to storage.
     //
     function setSeconds(refs, seconds) {
-        refs.seconds.textContent = `${seconds}s`;
+        setText(refs.seconds, `${seconds}s`);
     }
 
     //
@@ -174,6 +237,17 @@
                        aria-label="Seconds between captures">
                 <output class="tc-seconds">10s</output>
             </label>
+            <div class="tc-countdown" data-state="waiting" hidden
+                 title="Seconds until the next capture"
+                 aria-hidden="true">
+                <svg class="tc-ring" viewBox="0 0 24 24">
+                    <circle class="tc-ring-track" cx="12" cy="12"
+                            r="10"></circle>
+                    <circle class="tc-ring-fill" cx="12" cy="12"
+                            r="10"></circle>
+                </svg>
+                <span class="tc-countdown-value">0</span>
+            </div>
             <span class="tc-status"></span>
             <button type="button" class="tc-hide" title="Hide the bar"
                     aria-label="Hide the bar">&times;</button>

@@ -1,16 +1,36 @@
 {
-    // Build tasks for the C++ parts of Tabcast. Both build the debug
-    // configuration, which is the one with sanitizers and symbols, so
-    // F5 always launches something debuggable.
+    // Build tasks for Tabcast.
+    //
+    // "build all" is the one F5 uses. It runs the top level Makefile,
+    // which builds all three parts: the extension into
+    // build/evangelist/, and the two C++ programs into bin/. Every
+    // task builds the debug configuration, which is the one with
+    // symbols and sanitizers, so F5 always launches something
+    // debuggable.
     "version": "2.0.0",
     "tasks": [
+        {
+            "label": "build all",
+            "detail": "Extension, daemon, and client. Used by F5.",
+            "type": "shell",
+            "command": "make",
+            "args": ["-C", "${workspaceFolder}"],
+            "group": { "kind": "build", "isDefault": true },
+            "problemMatcher": ["$gcc"],
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared",
+                "clear": true
+            }
+        },
         {
             "label": "build apostle",
             "type": "shell",
             "command": "make",
             "args": ["-C", "${workspaceFolder}/apostle", "BUILD=debug"],
             "group": "build",
-            "problemMatcher": ["$gcc"]
+            "problemMatcher": ["$gcc"],
+            "presentation": { "reveal": "silent", "panel": "shared" }
         },
         {
             "label": "build disciple",
@@ -18,15 +38,27 @@
             "command": "make",
             "args": ["-C", "${workspaceFolder}/disciple", "BUILD=debug"],
             "group": "build",
-            "problemMatcher": ["$gcc"]
+            "problemMatcher": ["$gcc"],
+            "presentation": { "reveal": "silent", "panel": "shared" }
         },
         {
-            "label": "build all",
+            "label": "build evangelist",
+            "detail": "Rebuild the extension, then reload it in the browser.",
             "type": "shell",
             "command": "make",
-            "args": ["-C", "${workspaceFolder}"],
-            "group": { "kind": "build", "isDefault": true },
-            "problemMatcher": ["$gcc"]
+            "args": ["-C", "${workspaceFolder}/evangelist"],
+            "group": "build",
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "shared" }
+        },
+        {
+            "label": "test all",
+            "type": "shell",
+            "command": "make",
+            "args": ["-C", "${workspaceFolder}", "check"],
+            "group": { "kind": "test", "isDefault": true },
+            "problemMatcher": ["$gcc"],
+            "presentation": { "reveal": "always", "panel": "shared" }
         }
     ]
 }

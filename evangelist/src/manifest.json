@@ -14,8 +14,7 @@
         "storage"
     ],
     "host_permissions": [
-        "http://*/*",
-        "https://*/*"
+        "<all_urls>"
     ],
     "action": {
         "default_title": "Evangelist: show or hide the broadcast bar",

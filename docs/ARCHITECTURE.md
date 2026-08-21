@@ -26,6 +26,11 @@ distributes it to every registered Disciple plus any test client.
 receives frames, and renders them on the e-ink panel. Multiple
 Disciples form the flock.
 
+Its display is chosen at build time: a window on a development machine
+through gtkmm, the real panel through the FreeInk SDK, or nothing at
+all. The reduction to panel size and grey depth is shared by all three,
+so the test client shows exactly what the device will.
+
 ## Data flow
 
 ```
@@ -87,14 +92,36 @@ tabcast/
 ├── evangelist/           browser extension
 ├── apostle/              broadcast daemon
 ├── disciple/             e-ink client
-└── scripts/              developer automation
+├── scripts/              developer automation
+├── build/                every artifact, from every part
+└── bin/                  every finished program
 ```
 
-Each of the three parts is a self-contained project with its own build
-and its own `README.md`. The top level `Makefile` only orchestrates.
+Each of the three parts is a self-contained project with its own
+`Makefile` and its own `README.md`. The top level `Makefile` only
+orchestrates and defines no compile rules of its own.
+
+Output is the one thing the parts share. There is a single `build/`
+and a single `bin/` at the root, and each part writes into its own
+subdirectory of `build/` while dropping finished programs straight
+into `bin/`. Nothing is generated beside a part's sources, which is
+what keeps `git status` clean on a fully built tree and makes
+`make distclean` a complete undo.
+
+Because `bin/` is shared, each part's `distclean` deletes its own
+program by name rather than emptying the directory. Cleaning Apostle
+must not remove Disciple.
 
 ## Status
 
 - Evangelist: control bar, capture loop, and frame upload implemented.
-- Apostle: skeleton only. Builds and runs, does not yet serve.
-- Disciple: skeleton only. Builds and runs, no FreeInk SDK wired up.
+- Apostle: done for v1. It runs in the foreground or as a detached
+  daemon, serves the loopback ingest and health endpoints, and fans
+  every accepted frame out to the registered Disciples over TCP, one
+  frame in flight per client. Host-side reduction to `gray-packed` is
+  not written: frames go on as the browser encoded them.
+- Disciple: the test client is done. It joins an Apostle, receives
+  broadcast frames, fits each page to 480 x 800, reduces it to four
+  grey levels, and shows it in a gtkmm window, acknowledging each one
+  so the daemon can pace itself. No FreeInk yet, so there is no
+  Disciple that runs on a reader.

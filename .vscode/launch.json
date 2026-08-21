@@ -1,17 +1,26 @@
 {
-    // F5 debugging for the C++ parts. Needs the C/C++ extension
-    // (ms-vscode.cpptools). The debug build links the address and
-    // undefined behaviour sanitizers, so a bad access stops here with
-    // a report rather than somewhere later with a corrupted heap.
+    // F5 debugging for Tabcast.
+    //
+    // The default F5 target is the compound "Tabcast: daemon + client"
+    // at the bottom. It builds all three parts, then starts Apostle
+    // and Disciple together under gdb, so the extension has somewhere
+    // to broadcast to and you can watch both ends.
+    //
+    // Needs the C/C++ extension (ms-vscode.cpptools). Debug builds
+    // link the address and undefined behaviour sanitizers, so a bad
+    // access stops here with a report rather than somewhere later
+    // with a corrupted heap.
     "version": "0.2.0",
     "configurations": [
         {
             "name": "Debug apostle",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/apostle/bin/apostle",
-            "args": [],
-            "cwd": "${workspaceFolder}/apostle",
+            "program": "${workspaceFolder}/bin/apostle",
+            // Foreground, so its log lands in the debug console
+            // instead of the system journal.
+            "args": ["--foreground", "--log-level", "debug"],
+            "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "externalConsole": false,
             "MIMode": "gdb",
@@ -21,6 +30,11 @@
                     "description": "Pretty printing for the standard library",
                     "text": "-enable-pretty-printing",
                     "ignoreFailures": true
+                },
+                {
+                    "description": "Do not stop on the signals the daemon handles itself",
+                    "text": "handle SIGTERM SIGINT SIGHUP nostop noprint pass",
+                    "ignoreFailures": true
                 }
             ]
         },
@@ -28,13 +42,30 @@
             "name": "Debug disciple",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/disciple/bin/disciple",
-            "args": [],
-            "cwd": "${workspaceFolder}/disciple",
+            "program": "${workspaceFolder}/bin/disciple",
+            // Apostle cannot broadcast yet, so the client opens the
+            // sample page instead. Once the protocol lands, drop the
+            // arguments and it will connect.
+            "args": [
+                "--replay",
+                "${workspaceFolder}/disciple/tests/data/sample-page.png"
+            ],
+            "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "externalConsole": false,
             "MIMode": "gdb",
             "preLaunchTask": "build disciple",
+            "environment": [
+                {
+                    // GTK allocates at startup and never frees it,
+                    // and a debug build links the address sanitizer.
+                    // Without this every windowed run ends in a page
+                    // of leak reports that belong to the toolkit. A
+                    // leak in Disciple's own code is still reported.
+                    "name": "LSAN_OPTIONS",
+                    "value": "suppressions=${workspaceFolder}/disciple/scripts/lsan.supp"
+                }
+            ],
             "setupCommands": [
                 {
                     "description": "Pretty printing for the standard library",
@@ -42,6 +73,41 @@
                     "ignoreFailures": true
                 }
             ]
+        },
+        {
+            "name": "Debug disciple (no arguments)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/disciple",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "preLaunchTask": "build disciple",
+            "environment": [
+                {
+                    "name": "LSAN_OPTIONS",
+                    "value": "suppressions=${workspaceFolder}/disciple/scripts/lsan.supp"
+                }
+            ],
+            "setupCommands": [
+                {
+                    "description": "Pretty printing for the standard library",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        }
+    ],
+    "compounds": [
+        {
+            // The F5 default. Listed first so VS Code preselects it.
+            "name": "Tabcast: daemon + client",
+            "configurations": ["Debug apostle", "Debug disciple"],
+            "preLaunchTask": "build all",
+            "stopAll": true,
+            "presentation": { "group": "tabcast", "order": 1 }
         }
     ]
 }

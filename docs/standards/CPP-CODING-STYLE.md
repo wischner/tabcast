@@ -24,6 +24,14 @@ the tree.
 - `build/` contains all build artifacts, including object files,
   dependency files, static libraries, maps, listings, and temporary
   build products.
+
+In a multi-project repository there is exactly **one** `build/` and
+**one** `bin/`, both at the repository root, shared by every project.
+A project does not get its own pair. Each writes into
+`build/<project>/<build type>/` and drops its finished program in
+`bin/`. Paths are relative to a `ROOT_DIR` variable, defaulting to
+`..`, so building from inside a project directory puts artifacts in
+the same place as building from the top.
 - `docs/` contains project notes and design documents.
 - `scripts/` contains toolchains and developer automation organized by
   purpose or target platform.
@@ -35,8 +43,12 @@ Rules:
 - Public headers must live in `include/`.
 - Project source files may live in `src/` or in a library directory
   under `lib/`.
-- Build artifacts must go only into the root `build/` directory.
-- No nested `build/` directories are allowed.
+- Build artifacts must go only into the repository's single root
+  `build/` directory.
+- No project-level `build/` or `bin/` directories are allowed. A
+  `build/` appearing beside a project's sources is a bug.
+- Nothing generated may be written beside the sources. A clean
+  checkout plus `make distclean` must leave no untracked files.
 - Nothing else should be created at the project root except normal
   project files such as `LICENSE`, `README.md`, `Makefile`, and
   similar top-level metadata.
@@ -153,8 +165,9 @@ Rules:
 - The `Makefile` must discover sources under `src/` and `lib/` rather
   than listing them, so adding a file to the tree is enough to get it
   built.
-- Object files and intermediate links go to `build/<build type>/`.
-  Finished programs are copied to `bin/`.
+- Object files and intermediate links go to
+  `build/<project>/<build type>/`. Finished programs are copied to
+  `bin/`.
 - Every project supports exactly two build types, selected with
   `BUILD=`:
   - `debug`, the default: `-g -Og` with sanitizers.
@@ -163,6 +176,9 @@ Rules:
   resulting `.d` files, so editing a header rebuilds what uses it.
 - Every project `Makefile` provides `all`, `test`, `clean`,
   `distclean`, and `help`.
+- `distclean` removes what that project produced and nothing else.
+  Because `bin/` is shared, delete the program by name rather than
+  emptying the directory.
 - In a multi-project repository, the top-level `Makefile` only
   orchestrates. It delegates to each project and defines no compile
   rules of its own.

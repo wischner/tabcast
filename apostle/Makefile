@@ -5,13 +5,19 @@
 # Evangelist browser extension on loopback and fans them out to every
 # registered Disciple on the network.
 #
+# Artifacts do not stay here. This is one project in a multi-project
+# repository, and the repository has exactly one build/ and one bin/,
+# both at its root. Objects land in build/apostle/<build type>/ and the
+# finished program in bin/apostle. Building from inside this directory
+# works the same way, because the paths are relative to ROOT_DIR.
+#
 # Two build types. `debug`, the default, carries full warnings and the
 # address and undefined behaviour sanitizers. `release` links the C++
 # runtime into the binary so the daemon ships as one file with nothing
 # to install beside it.
 #
-#   make                 debug build into bin/apostle
-#   make BUILD=release   release build into bin/apostle
+#   make                 debug build into <root>/bin/apostle
+#   make BUILD=release   release build into <root>/bin/apostle
 #   make test            build and run the tests
 #   make help            list every target
 #
@@ -22,12 +28,18 @@
 NAME    := apostle
 BUILD   ?= debug
 
+# Where the repository root is, relative to this project. Everything
+# generated goes there and nothing is written beside the sources.
+ROOT_DIR ?= ..
+
 SRC_DIR  := src
 LIB_DIR  := lib
 INC_DIR  := include
 TEST_DIR := tests
-BIN_DIR  := bin
-OBJ_DIR  := build/$(BUILD)
+
+BUILD_DIR := $(ROOT_DIR)/build/$(NAME)
+BIN_DIR   := $(ROOT_DIR)/bin
+OBJ_DIR   := $(BUILD_DIR)/$(BUILD)
 
 CXX ?= g++
 
@@ -68,12 +80,12 @@ endif
 # The link lands in build/, where every artifact belongs, and the
 # finished program is copied to bin/. That keeps bin/ correct when
 # switching build types, which a plain timestamp rule would not.
-LINKED := $(OBJ_DIR)/$(NAME)
+LINKED  := $(OBJ_DIR)/$(NAME)
 PROGRAM := $(BIN_DIR)/$(NAME)
 
 .PHONY: all release run test clean distclean help
 
-## all: build the daemon into bin/ (default)
+## all: build the daemon into the repository bin/ (default)
 all: $(LINKED)
 	@mkdir -p $(BIN_DIR)
 	@cp -f $< $(PROGRAM)
@@ -111,13 +123,16 @@ else
 	done
 endif
 
-## clean: remove build artifacts for the current build type
+## clean: remove this project's artifacts for the current build type
 clean:
 	@rm -rf $(OBJ_DIR)
 
-## distclean: remove every build artifact and the program
+# Removes only what this project produced. bin/ is shared with the
+# other parts of the repository, so the program is deleted by name
+# rather than by emptying the directory.
+## distclean: remove all of this project's artifacts and its program
 distclean:
-	@rm -rf build $(BIN_DIR)
+	@rm -rf $(BUILD_DIR) $(PROGRAM)
 
 ## help: list the targets
 help:

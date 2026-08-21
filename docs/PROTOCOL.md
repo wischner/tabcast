@@ -145,16 +145,25 @@ Sent once, immediately after connecting.
   "version": "0.1.0",
   "protocol": 1,
   "device": "XTEINK-X4",
-  "width": 1404,
-  "height": 1872,
-  "grayBits": 4,
-  "accepts": ["image/png", "image/raw-gray8"]
+  "width": 480,
+  "height": 800,
+  "grayLevels": 4,
+  "accepts": ["image/png", "image/gray-packed"]
 }
 ```
 
+`grayLevels` counts distinct **shades**, black and white included, not
+bits. Four levels is two bits per pixel. The field is named for levels
+because "gray bits: 4" reads equally well as four levels and as
+sixteen, and a peer that guesses wrong sends four times the data in a
+depth the panel cannot show. Bits per pixel is always
+`ceil(log2(grayLevels))`.
+
 `accepts` lets a device opt out of PNG decoding. When a Disciple
-accepts `image/raw-gray8`, Apostle may decode and downscale on the
-host, which is the right tradeoff for a slow reader CPU.
+accepts `image/gray-packed`, Apostle decodes, scales, and quantises on
+the host, which is the right trade for a slow reader CPU. For an
+480x800 panel at four levels that is a 96000 byte frame, against
+384000 bytes for the same picture at one byte per pixel.
 
 ### welcome
 
@@ -175,11 +184,24 @@ Payload is a fixed 16-byte header followed by the image:
       0     4  sequence
       4     2  width
       6     2  height
-      8     1  format      1 = png, 2 = jpeg, 3 = raw-gray8
-      9     1  grayBits    bits per pixel for raw formats, else 0
+      8     1  format      see below
+      9     1  grayLevels  shades for raw formats, else 0
      10     6  reserved    must be 0
      16     n  image bytes
 ```
+
+| `format` | Meaning |
+| --- | --- |
+| 1 | `png` |
+| 2 | `jpeg` |
+| 3 | `raw-gray8`, one byte per pixel, values spread across the full 0-255 range |
+| 4 | `gray-packed`, `ceil(log2(grayLevels))` bits per pixel |
+
+In `gray-packed`, pixels run left to right with the **most significant
+bits of a byte holding the leftmost pixel**, and every row starts on a
+byte boundary. Row padding matters for a width that is not a whole
+number of bytes: at two bits per pixel a row of 480 pixels is exactly
+120 bytes and needs none, but a 481 pixel row would be padded to 121.
 
 Apostle sends a frame to a Disciple only in a format that Disciple
 listed in `accepts`.

@@ -73,7 +73,14 @@
     align-items: center;
     gap: 10px;
     box-sizing: border-box;
-    max-width: min(680px, calc(100vw - 32px));
+    /*
+     * Wide enough that the longest status line, which is the daemon
+     * unreachable error, fits without being cut. The bar only grows
+     * to this when it has something that long to say. Idle, it is
+     * closer to half. Messages are written to fit this, rather than
+     * this being widened to fit the messages.
+     */
+    max-width: min(880px, calc(100vw - 32px));
     padding: 8px 10px;
     border: 1px solid var(--tc-border);
     border-radius: 10px;
@@ -192,12 +199,100 @@
 }
 
 /*
+ * Countdown to the next capture: a ring that drains clockwise with the
+ * seconds remaining in the middle. Shown only while this tab is
+ * actually broadcasting, because nothing is counting otherwise.
+ */
+.tc-countdown {
+    flex: none;
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+}
+
+/*
+ * A class rule sets `display`, which outranks the user agent's
+ * [hidden] style, so hiding has to be stated explicitly.
+ */
+.tc-countdown[hidden] {
+    display: none;
+}
+
+.tc-ring {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    /* Start the arc at twelve o'clock rather than three. */
+    transform: rotate(-90deg);
+}
+
+.tc-ring-track {
+    fill: none;
+    stroke: var(--tc-border);
+    stroke-width: 2.5;
+}
+
+.tc-ring-fill {
+    fill: none;
+    stroke: var(--tc-live);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    /*
+     * The dash array is set from script, from the real circumference.
+     * The offset is what moves, and it eases so that a repaint four
+     * times a second reads as continuous motion.
+     */
+    transition: stroke-dashoffset 240ms linear;
+}
+
+.tc-countdown-value {
+    position: relative;
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--tc-fg);
+}
+
+/*
+ * While a frame is in flight there is nothing left to count, so the
+ * ring becomes a spinner. The dash array is overridden to a short arc,
+ * and the transition is dropped so the spin is not fought by an
+ * easing on the offset.
+ */
+.tc-countdown[data-state="sending"] .tc-ring-fill {
+    stroke: var(--tc-accent);
+    stroke-dasharray: 16 47 !important;
+    transition: none;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: tc-spin 900ms linear infinite;
+}
+
+@keyframes tc-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tc-ring-fill {
+        transition: none;
+    }
+
+    .tc-countdown[data-state="sending"] .tc-ring-fill {
+        animation: none;
+    }
+}
+
+/*
  * The status line is the only part with variable length, so it is the
- * only part allowed to shrink and ellipsise. The full text, which for
- * an error is the whole message, stays available as a tooltip.
+ * only part allowed to shrink and ellipsise. The basis is generous so
+ * that the bar widens to fit the message before it starts truncating
+ * it. Past the bar's maximum width it does ellipsise, and the full
+ * text stays available as a tooltip.
  */
 .tc-status {
-    flex: 1 1 auto;
+    flex: 1 1 320px;
     min-width: 0;
     padding-left: 10px;
     border-left: 1px solid var(--tc-border);
@@ -240,10 +335,13 @@
 }
 
 /*
- * Narrow viewports: let the bar wrap onto a second line rather than
- * stretch past the edge of the screen.
+ * When the viewport is too narrow for the bar to reach its full width,
+ * the status line is what gets squeezed, and a truncated message is
+ * the one thing here that loses real information. So below that point
+ * the status moves to its own line, where it has the whole width of
+ * the bar to itself, instead of sharing one line badly.
  */
-@media (max-width: 640px) {
+@media (max-width: 900px) {
     .tc-bar {
         flex-wrap: wrap;
         max-width: calc(100vw - 32px);
@@ -253,5 +351,20 @@
         flex-basis: 100%;
         padding-left: 0;
         border-left: 0;
+    }
+}
+
+/*
+ * Very narrow viewports: drop the "Refresh" word and shrink the
+ * slider, but never the countdown. On a phone sized window the ring is
+ * the one thing worth keeping at full size.
+ */
+@media (max-width: 460px) {
+    .tc-label {
+        display: none;
+    }
+
+    .tc-slider {
+        width: 72px;
     }
 }

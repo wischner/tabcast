@@ -37,8 +37,8 @@ Three parts, named for how the message travels.
 | Part | State |
 | --- | --- |
 | Evangelist | **Working.** Control bar, capture clock, and frame upload are implemented. |
-| Apostle | **Skeleton.** Builds and runs, does not yet serve. |
-| Disciple | **Skeleton.** Builds and runs, no FreeInk SDK wired up. |
+| Apostle | **Runs, does not serve.** Console or daemon, syslog, pid file, signals, systemd unit. The listeners are not written. |
+| Disciple | **Renders.** `--replay` shows a page exactly as the reader will, in a window. No networking yet. |
 
 The wire protocol for both hops is specified in full in
 [docs/PROTOCOL.md](docs/PROTOCOL.md), so neither daemon has to invent
@@ -52,8 +52,9 @@ Everything, from the repository root:
 make                 # build all three parts
 make check           # syntax check the extension, run the C++ tests
 make BUILD=release   # release build of the C++ parts
-make dist            # package the extension for side-loading
-make clean
+make dist            # package the extension into bin/
+make clean           # artifacts for the current build type
+make distclean       # everything, leaving no build/ or bin/ behind
 make help
 ```
 
@@ -73,18 +74,54 @@ own `README.md`. The top level only orchestrates.
 Ubuntu or Debian:
 
 ```sh
-sudo apt install build-essential make python3
+sudo apt install build-essential make python3 libgtkmm-3.0-dev
 ```
 
 - **Evangelist** needs `python3` and nothing else. No npm, no bundler,
   no network access at build time.
 - **Apostle** and **Disciple** need `g++` with C++20 support and GNU
   Make. No cmake.
-- **Disciple** additionally needs the FreeInk SDK to drive a real
-  panel. Without it, it builds headless, which is enough to exercise
-  the whole pipeline from a development machine.
+- **Disciple** picks its display at build time. With
+  `libgtkmm-3.0-dev` installed it builds the windowed test client,
+  `BACKEND=test`. Without it, it builds with no dependencies at all and
+  still runs the panel model and the tests. The FreeInk SDK is for the
+  real device and is not wired up yet.
 
 Firefox or Chrome, to run the extension.
+
+## Debugging with F5
+
+In VS Code, **F5** runs the compound target **Tabcast: daemon + client**.
+It builds all three parts, then launches Apostle and Disciple together
+under gdb, with `stopAll` so closing one stops the other.
+
+| | |
+| --- | --- |
+| Apostle | `--foreground --log-level debug`, so its log goes to the debug console rather than the journal. |
+| Disciple | `--replay disciple/tests/data/sample-page.png`, because Apostle cannot broadcast yet. Drop the argument once it can. |
+
+Both are debug builds, linked with the address and undefined behaviour
+sanitizers, so a bad access stops in the debugger with a report rather
+than corrupting the heap and failing later. Needs the C/C++ extension
+(`ms-vscode.cpptools`) and `gdb`.
+
+The build task also rebuilds the extension into `build/evangelist/`, so
+after F5 you can reload it in the browser and it will be current. See
+[evangelist/README.md](evangelist/README.md#install) for the reload
+step, which Firefox does not do on its own.
+
+**End to end works.** Press Broadcast in the browser and the page
+appears in the Disciple window, fitted to the reader's portrait panel
+and reduced to four grey levels. The path is Evangelist captures the
+tab, posts it to Apostle over loopback, Apostle fans it out over TCP,
+Disciple renders it and acknowledges.
+
+What is still missing is the device itself: `BACKEND=freeink` is not
+written, so the only Disciple that exists is the windowed test client
+on a development machine. Host-side reduction to `gray-packed` is not
+written either, so Apostle forwards the browser's PNG and lets the
+client do the work. That is the right trade on a desktop and the wrong
+one on a reader.
 
 ## Getting started
 
@@ -115,8 +152,25 @@ tabcast/
 ├── evangelist/           browser extension
 ├── apostle/              broadcast daemon
 ├── disciple/             e-ink client
-└── scripts/              developer automation
+├── scripts/              developer automation
+├── build/                every artifact, from every part
+└── bin/                  every finished program
 ```
+
+There is exactly one `build/` and one `bin/`, both here at the root.
+No part writes anything beside its own sources, so `git status` on a
+fully built tree is clean.
+
+| | |
+| --- | --- |
+| `build/apostle/<type>/` | Objects, deps, intermediate links. `<type>` is `debug` or `release`. |
+| `build/disciple/<type>/` | The same. |
+| `build/evangelist/<browser>/` | Unpacked extension. This is what you load with "load unpacked". |
+| `bin/apostle`, `bin/disciple` | The finished programs. |
+| `bin/evangelist-<version>-<browser>.xpi` | Packaged extension, written by `make dist`. |
+
+Building from inside a part works the same way. `cd apostle && make`
+puts its output in the root `build/` and `bin/`, not in `apostle/`.
 
 ## Standards
 

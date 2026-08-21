@@ -1,0 +1,63 @@
+#
+# systemd unit for the Apostle broadcast daemon.
+#
+# Install with:
+#
+#   sudo install -m 755 bin/apostle /usr/local/bin/apostle
+#   sudo install -m 644 scripts/apostle.service \
+#       /etc/systemd/system/apostle.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now apostle
+#
+# Note that this runs apostle in the FOREGROUND. That is not a
+# contradiction: under a service manager, --daemon is the wrong choice.
+# systemd wants to be the direct parent so it can supervise and restart
+# the process, and it reads stderr straight into the journal. Detaching
+# would hide the process from its supervisor and throw the log away.
+#
+# Use --daemon only on a machine with no service manager.
+#
+# MIT License (see: LICENSE)
+# Copyright (C) 2026 Tomaz Stih
+#
+
+[Unit]
+Description=Apostle, the Tabcast broadcast daemon
+Documentation=https://github.com/tstih/tabcast
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/apostle --foreground --log-level info
+
+# SIGHUP is the reload signal, so `systemctl reload apostle` does the
+# right thing rather than restarting.
+ExecReload=/bin/kill -HUP $MAINPID
+
+Restart=on-failure
+RestartSec=2
+
+# No pid file. systemd tracks the main process itself, and a pid file
+# would be one more thing that can go stale.
+
+# Both ports are above 1024 and the daemon writes nothing to disk, so
+# it needs no privileges at all. DynamicUser gives it a throwaway
+# account rather than asking you to create one.
+DynamicUser=yes
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

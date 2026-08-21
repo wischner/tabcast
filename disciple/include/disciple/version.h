@@ -31,16 +31,57 @@ inline constexpr const char *device_name = "XTEINK-X4";
 // Panel geometry, reported to Apostle so it can scale frames on the
 // host rather than on the reader's much slower processor.
 //
-// PLACEHOLDER. These numbers have not been read off an XTEINK X4 and
-// must be confirmed against the device or the FreeInk SDK before the
-// first real render. Everything downstream sizes itself from here, so
-// getting them wrong is not a cosmetic mistake.
-inline constexpr int panel_width = 1404;
-inline constexpr int panel_height = 1872;
+// The X4 is a portrait reader and these are its physical pixels, held
+// the way the device is held. Everything downstream sizes itself from
+// them, so a page is fitted to a tall panel rather than a wide one,
+// which is what a reader actually shows.
+inline constexpr int panel_width = 480;
+inline constexpr int panel_height = 800;
 
-// Grey levels the panel can actually show, as bits per pixel.
-// PLACEHOLDER, see the note above.
-inline constexpr int panel_gray_bits = 4;
+// Distinct shades the panel can show, black and white included.
+//
+// Counted as LEVELS, not as bits. The two are easy to confuse and the
+// confusion is expensive: four levels is two bits per pixel, while
+// "four bit grey" would mean sixteen levels, four times the data and
+// a picture the panel cannot actually display. Everything downstream
+// quantises to this number, so it is stated in the unit that cannot
+// be misread.
+inline constexpr int panel_gray_levels = 4;
+
+//
+// Bits needed to store one pixel at the panel's grey depth.
+//
+// Returns:
+//      Bits per pixel: 1 for two levels, 2 for four, 4 for sixteen.
+//
+// Notes:
+//      Derived rather than stored, so it can never drift out of step
+//      with panel_gray_levels.
+//
+constexpr int panel_gray_bits() {
+    int bits = 0;
+    while ((1 << bits) < panel_gray_levels) {
+        ++bits;
+    }
+    return bits;
+}
+
+//
+// Bytes one full frame occupies on the panel, packed at its grey
+// depth.
+//
+// Returns:
+//      Size in bytes of one tightly packed frame.
+//
+// Notes:
+//      480 x 800 at two bits is 96000 bytes, against 384000 if the
+//      same frame were carried one byte per pixel. That difference is
+//      the argument for packing before it goes over the air to a
+//      battery powered reader.
+//
+constexpr int panel_frame_bytes() {
+    return panel_width * panel_height * panel_gray_bits() / 8;
+}
 
 } // namespace disciple
 

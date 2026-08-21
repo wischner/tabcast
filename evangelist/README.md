@@ -12,14 +12,20 @@ Firefox and Chrome, Manifest V3, one source tree.
 The only dependency is `python3`. No npm, no bundler, no network.
 
 ```sh
-make            # unpacked trees in build/firefox and build/chrome
-make dist       # plus loadable archives in build/
+make            # unpacked trees, see below
+make dist       # plus loadable archives
 make check      # syntax check the manifests and the scripts
 make clean
 ```
 
-`make dist` writes `build/evangelist-<version>-firefox.xpi` and
-`build/evangelist-<version>-chrome.zip`.
+Output goes to the repository root, not into this directory. There is
+one `build/` and one `bin/` for all three parts of Tabcast:
+
+| What | Where |
+| --- | --- |
+| Unpacked Firefox tree, load this while working | `../build/evangelist/firefox/` |
+| Unpacked Chrome tree, load this while working | `../build/evangelist/chrome/` |
+| Signed-and-shipped archives, from `make dist` | `../bin/evangelist-<version>-firefox.xpi` and `-chrome.zip` |
 
 ## Install
 
@@ -28,15 +34,17 @@ make clean
 1. `make firefox`
 2. Open `about:debugging#/runtime/this-firefox`.
 3. **Load Temporary Add-on**, and pick
-   `evangelist/build/firefox/manifest.json`.
+   `build/evangelist/firefox/manifest.json` at the repository root.
 4. **This step is not optional.** Open `about:addons`, click
    Evangelist, then Permissions, and turn on *Access your data for all
    websites*.
 
 Firefox treats Manifest V3 host permissions as optional and does not
 prompt for them at install time. Without step 4 the control bar
-appears and the Broadcast button does nothing useful, because
-`captureVisibleTab()` is refused. This surprises everyone once.
+appears and the Broadcast button reports **captureVisibleTab is not a
+function**, because Firefox does not inject the method at all until
+the `<all_urls>` permission it is gated on has actually been granted.
+This surprises everyone once.
 
 A temporary add-on is removed when Firefox closes. For a permanent
 install, sign the `.xpi` from `make dist` through addons.mozilla.org,
@@ -48,7 +56,8 @@ or run Firefox Developer Edition or Nightly with
 1. `make chrome`
 2. Open `chrome://extensions`.
 3. Turn on **Developer mode**.
-4. **Load unpacked**, and pick `evangelist/build/chrome`.
+4. **Load unpacked**, and pick `build/evangelist/chrome` at the
+   repository root.
 
 Chrome grants the declared host permissions at install time, so there
 is no extra step.
@@ -64,9 +73,17 @@ corner.
 - **Stop** ends the broadcast.
 - The **Refresh** slider sets the seconds between captures, from 2 to
   300. It takes effect immediately, including mid-broadcast.
-- The status line reads *Live, frame 12, 3 readers, next in 7s*, or
-  the reason nothing is being sent.
+- The **countdown ring** shows the seconds until the next capture and
+  drains as they run down. While a frame is actually being sent it
+  turns into a spinner, because at that point there is nothing left to
+  count. It appears only while this tab is broadcasting.
+- The status line reads *Live, frame 12, 3 readers*, or the reason
+  nothing is being sent.
 - **×** hides the bar on this page. The toolbar button brings it back.
+
+The bar widens to fit its status message and, on a viewport narrower
+than 900px, moves the message to a second line rather than truncating
+it.
 
 The toolbar button shows and hides the bar. The badge reads `ON` while
 a broadcast is running.
@@ -155,6 +172,10 @@ evangelist/
     ├── build.py                merge manifests, copy, package
     └── make_icons.py           draw the icon set
 ```
+
+Nothing is generated inside this directory. The icons under
+`src/icons/` are the one committed exception, because they are drawn
+once by `tools/make_icons.py` and then treated as sources.
 
 Coding rules for this project are in
 `docs/standards/EXT-CODING-STYLE.md`.

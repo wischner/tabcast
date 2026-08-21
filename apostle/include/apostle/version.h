@@ -28,6 +28,13 @@ inline constexpr int default_ingest_port = 8420;
 // Network port Disciples connect to for the broadcast stream.
 inline constexpr int default_broadcast_port = 8421;
 
+// Largest frame the ingest endpoint accepts, in bytes. Reported to
+// Evangelist as maxFrameBytes by /api/v1/health, so the extension can
+// refuse a capture before spending loopback bandwidth on it. Eight
+// megabytes is far more than a PNG of a browser window needs and far
+// less than a body that could exhaust the daemon.
+inline constexpr long long max_frame_bytes = 8 * 1024 * 1024;
+
 } // namespace apostle
 
 #endif // APOSTLE_VERSION_H

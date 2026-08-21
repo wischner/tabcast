@@ -145,12 +145,26 @@ def package(out_dir, archive_path):
                 archive.write(full, os.path.relpath(full, out_dir))
 
 
-def build(src_dir, build_dir, target, make_archive):
+def build(src_dir, build_dir, dist_dir, target):
     """Build one browser target.
+
+    Parameters:
+        src_dir     - Extension source directory.
+        build_dir   - Where the unpacked, loadable tree goes.
+        dist_dir    - Where the archive goes, or None to skip
+                      packaging.
+        target      - Browser name, a key of TARGETS.
 
     Returns:
         0 on success, 1 when the built tree is missing a file its
         manifest references.
+
+    Notes:
+        The unpacked tree and the archive land in different places on
+        purpose. The tree is an intermediate that a developer loads
+        with "load unpacked", so it belongs in build/. The archive is
+        the thing you would hand to someone else, so it belongs in
+        bin/ alongside the compiled programs.
     """
     manifest = load_manifest(src_dir, target)
     out_dir = os.path.join(build_dir, target)
@@ -170,11 +184,12 @@ def build(src_dir, build_dir, target, make_archive):
 
     print("built %s" % out_dir)
 
-    if make_archive:
+    if dist_dir:
         name = "evangelist-%s-%s%s" % (
             manifest["version"], target, TARGETS[target]
         )
-        archive_path = os.path.join(build_dir, name)
+        os.makedirs(dist_dir, exist_ok=True)
+        archive_path = os.path.join(dist_dir, name)
         package(out_dir, archive_path)
         print("packaged %s" % archive_path)
 
@@ -187,18 +202,19 @@ def main(argv):
     parser.add_argument("--src", default="src",
                         help="extension source directory")
     parser.add_argument("--out", default="build",
-                        help="build output directory")
+                        help="where the unpacked, loadable trees go")
+    parser.add_argument("--dist",
+                        help="where the archives go. Packaging is "
+                             "skipped unless this is given")
     parser.add_argument("--target", action="append", choices=TARGETS,
                         help="browser to build, repeatable, "
                              "defaults to all of them")
-    parser.add_argument("--zip", action="store_true",
-                        help="also package each target into an archive")
     args = parser.parse_args(argv[1:])
 
     os.makedirs(args.out, exist_ok=True)
 
     for target in args.target or sorted(TARGETS):
-        status = build(args.src, args.out, target, args.zip)
+        status = build(args.src, args.out, args.dist, target)
         if status != 0:
             return status
     return 0

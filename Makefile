@@ -12,6 +12,16 @@
 # target in each part, so `make` builds everything and `make clean`
 # cleans everything.
 #
+# There is exactly one build/ and one bin/, both here at the root. No
+# part writes artifacts beside its own sources:
+#
+#   build/apostle/<type>/    objects, deps, intermediate links
+#   build/disciple/<type>/
+#   build/evangelist/<browser>/   unpacked extension, load this
+#   bin/apostle                   finished programs
+#   bin/disciple
+#   bin/evangelist-<version>-<browser>.xpi   made by `make dist`
+#
 #   make                 build all three parts
 #   make evangelist      build one part
 #   make BUILD=release   release build of the C++ parts
@@ -75,10 +85,10 @@ clean:
 
 ## distclean: remove every build artifact and every built program
 distclean:
-	@$(MAKE) --no-print-directory -C $(WEB) clean
-	@for part in $(NATIVE); do \
+	@for part in $(PARTS); do \
 	    $(MAKE) --no-print-directory -C $$part distclean || exit 1; \
 	done
+	@rmdir build bin 2>/dev/null || true
 
 ## help: list the targets
 help:

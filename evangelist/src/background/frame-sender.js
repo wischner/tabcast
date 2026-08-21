@@ -6,6 +6,16 @@
 // to the loopback daemon, and tabs.captureVisibleTab() is not exposed
 // to them at all.
 //
+// captureVisibleTab() needs the literal "<all_urls>" host permission,
+// which is why the manifest asks for that rather than the http and
+// https patterns the content scripts match on. Firefox gates the API
+// on the exact string and does not accept the broader patterns as an
+// equivalent; worse, it does not inject the method at all when the
+// permission is missing, so the symptom is "captureVisibleTab is not
+// a function" rather than anything mentioning permissions. Narrowing
+// the manifest back to http/https breaks Firefox and leaves no clue
+// why.
+//
 // One tick is: photograph the visible tab, hash it, drop it if it is
 // identical to the previous frame, otherwise POST the raw image to
 // Apostle. See docs/PROTOCOL.md for the wire format.
@@ -217,13 +227,19 @@ async function readJson(response) {
 //
 // Build the message shown when the daemon cannot be reached at all.
 //
+// Notes:
+//      Kept short deliberately. This lands in the control bar's
+//      status line, which sits on somebody else's page and has one
+//      line to work with. A sentence that has to be truncated to
+//      "Cannot reach Apos..." tells the reader less than a short one
+//      that fits.
+//
 function unreachableMessage(settings, cause) {
+    const where = `${settings.host}:${settings.port}`;
     if (cause?.name === "TimeoutError") {
-        return `Apostle at ${settings.host}:${settings.port} did not ` +
-            `answer in time.`;
+        return `Apostle at ${where} did not answer in time.`;
     }
-    return `Cannot reach Apostle at ${settings.host}:${settings.port}. ` +
-        `Is the daemon running?`;
+    return `No answer from Apostle at ${where}.`;
 }
 
 //

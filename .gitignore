@@ -1,7 +1,9 @@
-# Build artifacts. Every project keeps them under its own build/, and
-# finished programs under bin/.
-build/
-bin/
+# Build artifacts. There is one of each, at the repository root: every
+# part writes into build/<part>/ and drops finished programs in bin/.
+# Anchored with a leading slash so a build/ or bin/ appearing anywhere
+# else is a mistake that shows up in git status instead of hiding.
+/build/
+/bin/
 
 # Editor and OS noise.
 *~

@@ -38,13 +38,20 @@ Do not create files outside the approved directories.
 - `src/options/` contains the options page.
 - `src/icons/` contains generated icon assets.
 - `tools/` contains build and asset scripts.
-- `build/` contains all build output, including unpacked per-browser
-  trees and packaged archives.
+
+Build output goes to the repository's single root `build/` and `bin/`,
+never beside the sources:
+
+- `build/<project>/<browser>/` holds the unpacked, loadable tree. It
+  is an intermediate a developer loads with "load unpacked".
+- `bin/` holds the packaged archives, alongside the compiled programs
+  of the other parts. That is what you hand to someone else.
 
 Rules:
 
-- Build output must go only into the project `build/` directory.
-- Never edit anything under `build/`. It is disposable.
+- Build output must go only into the root `build/` and `bin/`.
+- Never edit anything under `build/`. It is disposable, and the next
+  build overwrites it.
 - Generated assets such as icons must have their generator committed
   in `tools/`.
 
@@ -188,8 +195,11 @@ The rest:
 
 ## 10. Build and Packaging
 
-- `make` produces an unpacked tree per browser under `build/`.
-- `make dist` produces loadable archives under `build/`.
+- `make` produces an unpacked tree per browser under
+  `build/<project>/`.
+- `make dist` produces loadable archives under `bin/`.
+- `make clean` removes this project's output only. Because `bin/` is
+  shared, delete the archives by name rather than emptying it.
 - The version number lives in `src/manifest.json` and nowhere else.
 - Packaged archives must contain no source maps and no build tools.
 

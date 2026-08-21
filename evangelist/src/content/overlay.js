@@ -44,8 +44,16 @@
     let tickTimer = null;
     let tickDueAt = 0;
 
-    // Once-a-second repaint, running only while a broadcast is live.
+    // Repaint that drives the countdown, running only while a
+    // broadcast is live. Four times a second, which is fast enough
+    // that the ring drains smoothly rather than stepping.
     let countdownTimer = null;
+    const COUNTDOWN_REPAINT_MS = 250;
+
+    // True while a capture is actually in flight. The countdown has
+    // nothing left to count then, so the ring says "sending" instead
+    // of sitting at zero looking stalled.
+    let sending = false;
 
     // True while a start or stop request is in flight.
     let busy = false;
@@ -103,6 +111,10 @@
         clearTick();
         tickDueAt = Date.now() + delayMs;
         tickTimer = setTimeout(() => guard(tick()), delayMs);
+        // This is the moment the wait restarts, so it is the moment
+        // the ring should refill. Leaving it to the next repaint
+        // would show a stale remainder for a quarter of a second.
+        render();
     }
 
     //
@@ -135,11 +147,20 @@
             return;
         }
 
-        const reply = await send({
-            type: MSG.TICK,
-            title: document.title,
-            url: location.href
-        });
+        sending = true;
+        render();
+
+        let reply;
+        try {
+            reply = await send({
+                type: MSG.TICK,
+                title: document.title,
+                url: location.href
+            });
+        } finally {
+            sending = false;
+            render();
+        }
 
         if (reply?.view) {
             setView(reply.view);
@@ -325,17 +346,50 @@
             status: statusText(state),
             tooltip: view.lastError ?? "",
             intervalSeconds: settings.intervalSeconds,
+            countdown: countdownModel(live),
             canStart: !busy && !view.broadcasting,
             canStop: !busy && view.owned,
             hidden: isHidden()
         });
 
         if (live && countdownTimer === null) {
-            countdownTimer = setInterval(render, 1000);
+            countdownTimer = setInterval(render, COUNTDOWN_REPAINT_MS);
         } else if (!live && countdownTimer !== null) {
             clearInterval(countdownTimer);
             countdownTimer = null;
         }
+    }
+
+    //
+    // Work out how much of the wait is left.
+    //
+    // Parameters:
+    //      live        - Whether a broadcast is running in this tab.
+    //
+    // Returns:
+    //      The countdown model described in bar-ui.js paintCountdown().
+    //
+    // Notes:
+    //      Measured against the absolute time the next capture is due,
+    //      not by decrementing a counter, so a throttled or delayed
+    //      repaint shows the right number rather than drifting.
+    //      Seconds are rounded up, so a ten second interval reads
+    //      "10" the moment it is set and reaches "0" only as the
+    //      capture fires.
+    //
+    function countdownModel(live) {
+        if (!live || tickDueAt === 0) {
+            return { visible: false, seconds: 0, fraction: 0, sending };
+        }
+        const remainingMs = Math.max(0, tickDueAt - Date.now());
+        const totalMs = Math.max(1, settings.intervalSeconds * 1000);
+
+        return {
+            visible: true,
+            seconds: Math.ceil(remainingMs / 1000),
+            fraction: Math.min(1, remainingMs / totalMs),
+            sending
+        };
     }
 
     //
@@ -379,22 +433,22 @@
     }
 
     //
-    // Describe a healthy broadcast: frames sent, readers reached, and
-    // how long until the next capture.
+    // Describe a healthy broadcast: frames sent and readers reached.
+    //
+    // Notes:
+    //      Says nothing about the time to the next capture. That used
+    //      to live here, but a number buried in a sentence is not a
+    //      countdown. It has its own ring in the bar now.
     //
     function liveText() {
+        if (sending) {
+            return `Sending frame ${view.sequence + 1}`;
+        }
         const parts = [`Live, frame ${view.sequence}`];
         if (Number.isFinite(view.clients)) {
             parts.push(
                 view.clients === 1 ? "1 reader" : `${view.clients} readers`
             );
-        }
-        if (tickDueAt > 0) {
-            const remaining = Math.max(
-                0,
-                Math.round((tickDueAt - Date.now()) / 1000)
-            );
-            parts.push(`next in ${remaining}s`);
         }
         return parts.join(", ");
     }
