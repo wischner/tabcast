@@ -49,10 +49,10 @@ it while being written.
 Everything, from the repository root:
 
 ```sh
-make                 # build all three parts
+make                 # build all three parts into build/ and bin/
 make check           # syntax check the extension, run the C++ tests
 make BUILD=release   # release build of the C++ parts
-make dist            # package the extension into bin/
+make dist            # build all distributable outputs (same as make)
 make clean           # artifacts for the current build type
 make distclean       # everything, leaving no build/ or bin/ behind
 make help
@@ -167,7 +167,7 @@ fully built tree is clean.
 | `build/disciple/<type>/` | The same. |
 | `build/evangelist/<browser>/` | Unpacked extension. This is what you load with "load unpacked". |
 | `bin/apostle`, `bin/disciple` | The finished programs. |
-| `bin/evangelist-<version>-<browser>.xpi` | Packaged extension, written by `make dist`. |
+| `bin/evangelist-<version>-firefox.xpi`, `bin/evangelist-<version>-chrome.zip` | Packaged extensions, written by `make` or `make dist`. |
 
 Building from inside a part works the same way. `cd apostle && make`
 puts its output in the root `build/` and `bin/`, not in `apostle/`.

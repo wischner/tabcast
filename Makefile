@@ -20,11 +20,13 @@
 #   build/evangelist/<browser>/   unpacked extension, load this
 #   bin/apostle                   finished programs
 #   bin/disciple
-#   bin/evangelist-<version>-<browser>.xpi   made by `make dist`
+#   bin/evangelist-<version>-firefox.xpi
+#   bin/evangelist-<version>-chrome.zip
 #
 #   make                 build all three parts
 #   make evangelist      build one part
 #   make BUILD=release   release build of the C++ parts
+#   make deb             release build and Debian package
 #   make check           syntax check and test everything
 #   make help            list every target
 #
@@ -44,12 +46,19 @@ PARTS := $(WEB) $(NATIVE)
 # release links the C++ runtime in and ships one file per program.
 BUILD ?= debug
 
-.PHONY: all $(PARTS) release dist check test clean distclean help
+# Debian packaging always makes a release build. The test backend is
+# the distributable desktop Disciple; override this only when testing
+# the package machinery on a machine without gtkmm.
+PACKAGE_VERSION ?= $(shell python3 -c \
+    'import json; print(json.load(open("evangelist/src/manifest.json"))["version"])')
+DISCIPLE_BACKEND ?= test
+
+.PHONY: all $(PARTS) release dist deb check test clean distclean help
 
 ## all: build all three parts (default)
 all: $(PARTS)
 
-## evangelist: build the browser extension for Firefox and Chrome
+## evangelist: build and package the extension for Firefox and Chrome
 ## apostle: build the broadcast daemon
 ## disciple: build the e-ink client
 $(WEB):
@@ -62,9 +71,17 @@ $(NATIVE):
 release:
 	@$(MAKE) --no-print-directory BUILD=release
 
-## dist: package the extension for side-loading, build the rest
+## dist: build all distributable outputs (currently the same as all)
 dist: $(NATIVE)
 	@$(MAKE) --no-print-directory -C $(WEB) dist
+
+## deb: build one Debian package containing all three parts
+deb:
+	@$(MAKE) --no-print-directory -C apostle BUILD=release
+	@$(MAKE) --no-print-directory -C disciple BUILD=release \
+	    BACKEND=$(DISCIPLE_BACKEND)
+	@$(MAKE) --no-print-directory -C evangelist dist
+	@packaging/build-deb.sh "$(PACKAGE_VERSION)"
 
 ## check: syntax check the extension and run the C++ tests
 check:
@@ -88,7 +105,9 @@ distclean:
 	@for part in $(PARTS); do \
 	    $(MAKE) --no-print-directory -C $$part distclean || exit 1; \
 	done
+	@rm -f dist/tabcast_*.deb
 	@rmdir build bin 2>/dev/null || true
+	@rmdir dist 2>/dev/null || true
 
 ## help: list the targets
 help:

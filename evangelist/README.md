@@ -12,8 +12,8 @@ Firefox and Chrome, Manifest V3, one source tree.
 The only dependency is `python3`. No npm, no bundler, no network.
 
 ```sh
-make            # unpacked trees, see below
-make dist       # plus loadable archives
+make            # unpacked trees plus loadable archives, see below
+make dist       # same packaged build, for distribution workflows
 make check      # syntax check the manifests and the scripts
 make clean
 ```
@@ -25,7 +25,7 @@ one `build/` and one `bin/` for all three parts of Tabcast:
 | --- | --- |
 | Unpacked Firefox tree, load this while working | `../build/evangelist/firefox/` |
 | Unpacked Chrome tree, load this while working | `../build/evangelist/chrome/` |
-| Signed-and-shipped archives, from `make dist` | `../bin/evangelist-<version>-firefox.xpi` and `-chrome.zip` |
+| Signed-and-shipped archives, from `make` or `make dist` | `../bin/evangelist-<version>-firefox.xpi` and `-chrome.zip` |
 
 ## Install
 

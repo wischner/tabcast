@@ -1,0 +1,11 @@
+Package: tabcast
+Version: @VERSION@
+Section: net
+Priority: optional
+Architecture: @ARCHITECTURE@
+Maintainer: Tomaz Stih <tomaz.stih@wischner.co.uk>
+Depends: @DEPENDS@
+Homepage: https://github.com/tstih/tabcast
+Description: cast live browser content to e-ink displays
+ Tabcast contains the Apostle broadcast daemon, the Disciple desktop
+ renderer, and the Evangelist browser extensions for Firefox and Chrome.

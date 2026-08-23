@@ -1,0 +1,94 @@
+name: Debian package
+
+on:
+  push:
+    tags:
+      - "**"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Build Debian package
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out tag
+        uses: actions/checkout@v6
+
+      - name: Derive Debian version from tag
+        id: version
+        env:
+          RAW_TAG: ${{ github.ref_name }}
+        run: |
+          version="${RAW_TAG#v}"
+          version="$(printf '%s' "$version" | LC_ALL=C sed -E \
+            's/[^0-9A-Za-z.+~-]+/./g; s/^\.+//; s/\.+$//')"
+          if [[ -z "$version" ]]; then
+            version="0~git.${GITHUB_RUN_NUMBER}"
+          elif [[ ! "$version" =~ ^[0-9] ]]; then
+            version="0~$version"
+          fi
+          dpkg --validate-version "$version"
+          echo "value=$version" >>"$GITHUB_OUTPUT"
+
+      - name: Check and build on Ubuntu 24.04
+        id: package
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          docker run --rm \
+            --volume "$PWD:/work" \
+            --workdir /work \
+            --env PACKAGE_VERSION \
+            ubuntu:24.04 \
+            bash -euo pipefail -c '
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install --yes --no-install-recommends \
+                build-essential \
+                dpkg-dev \
+                libgtkmm-3.0-dev \
+                make \
+                nodejs \
+                python3
+              make check
+              make deb PACKAGE_VERSION="$PACKAGE_VERSION"
+            '
+          package_path="dist/tabcast_${PACKAGE_VERSION}_$(dpkg --print-architecture).deb"
+          test -f "$package_path"
+          dpkg-deb --info "$package_path"
+          dpkg-deb --contents "$package_path"
+          echo "path=$package_path" >>"$GITHUB_OUTPUT"
+
+      - name: Verify installation on fresh Ubuntu
+        env:
+          PACKAGE_PATH: ${{ steps.package.outputs.path }}
+        run: |
+          docker run --rm \
+            --volume "$PWD:/work:ro" \
+            --env PACKAGE_FILE="/work/$PACKAGE_PATH" \
+            ubuntu:24.04 \
+            bash -euo pipefail -c '
+              apt-get update
+              apt-get install --yes "$PACKAGE_FILE"
+              apostle --version
+              disciple --version
+              disciple \
+                --replay /work/disciple/tests/data/sample-page.png \
+                --save /tmp/tabcast-render.png \
+                --no-view
+              test -s /tmp/tabcast-render.png
+              test -f /usr/share/tabcast/evangelist/evangelist-firefox.xpi
+              test -f /usr/share/tabcast/evangelist/evangelist-chrome.zip
+              ! find /usr/share/doc/tabcast -iname "README*" -print -quit \
+                | grep .
+            '
+
+      - name: Upload Debian package
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.package.outputs.path }}
+          archive: false
+          if-no-files-found: error

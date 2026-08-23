@@ -4,6 +4,7 @@
 # else is a mistake that shows up in git status instead of hiding.
 /build/
 /bin/
+/dist/
 
 # Editor and OS noise.
 *~
