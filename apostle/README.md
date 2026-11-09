@@ -112,6 +112,12 @@ Debug builds carry `-Og -g` and the address and undefined behaviour
 sanitizers. Release builds carry `-O2` and link the C++ runtime into
 the binary.
 
+On hosts where a system preload such as AppProtection conflicts with
+AddressSanitizer, use `make SANITIZERS=undefined` and
+`make test SANITIZERS=undefined`. Debug artifacts are separated into
+`<build type>/<sanitizers>/` so changing this option forces a fresh
+build. The default remains `SANITIZERS=address,undefined`.
+
 ## Run
 
 From the repository root:

@@ -28,6 +28,10 @@
 NAME    := apostle
 BUILD   ?= debug
 
+# System-wide preload libraries such as AppProtection can prevent ASan
+# from starting. Use SANITIZERS=undefined for debugging on those hosts.
+SANITIZERS ?= address,undefined
+
 # Where the repository root is, relative to this project. Everything
 # generated goes there and nothing is written beside the sources.
 ROOT_DIR ?= ..
@@ -40,6 +44,9 @@ TEST_DIR := tests
 BUILD_DIR := $(ROOT_DIR)/build/$(NAME)
 BIN_DIR   := $(ROOT_DIR)/bin
 OBJ_DIR   := $(BUILD_DIR)/$(BUILD)
+ifeq ($(BUILD),debug)
+    OBJ_DIR := $(OBJ_DIR)/$(SANITIZERS)
+endif
 
 CXX ?= g++
 
@@ -65,8 +72,8 @@ CXXFLAGS += -std=c++20 -Wall -Wextra -pedantic
 
 ifeq ($(BUILD),debug)
     CXXFLAGS += -g -Og -fno-omit-frame-pointer \
-                -fsanitize=address,undefined
-    LDFLAGS  += -fsanitize=address,undefined
+                -fsanitize=$(SANITIZERS)
+    LDFLAGS  += -fsanitize=$(SANITIZERS)
 else ifeq ($(BUILD),release)
     CXXFLAGS += -O2 -DNDEBUG
     # One self-contained executable. Not a full -static link: glibc
@@ -125,7 +132,7 @@ endif
 
 ## clean: remove this project's artifacts for the current build type
 clean:
-	@rm -rf $(OBJ_DIR)
+	@rm -rf $(BUILD_DIR)/$(BUILD)
 
 # Removes only what this project produced. bin/ is shared with the
 # other parts of the repository, so the program is deleted by name

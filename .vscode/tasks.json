@@ -5,8 +5,9 @@
     // which builds all three parts: the extension into
     // build/evangelist/, and the two C++ programs into bin/. Every
     // task builds the debug configuration, which is the one with
-    // symbols and sanitizers, so F5 always launches something
-    // debuggable.
+    // symbols and UBSan. ASan conflicts with the system-wide
+    // AppProtection preload on the development machine. Normal make
+    // builds still default to both address and undefined sanitizers.
     "version": "2.0.0",
     "tasks": [
         {
@@ -14,7 +15,7 @@
             "detail": "Extension, daemon, and client. Used by F5.",
             "type": "shell",
             "command": "make",
-            "args": ["-C", "${workspaceFolder}"],
+            "args": ["-C", "${workspaceFolder}", "BUILD=debug", "BACKEND=test", "SANITIZERS=undefined"],
             "group": { "kind": "build", "isDefault": true },
             "problemMatcher": ["$gcc"],
             "presentation": {
@@ -27,7 +28,7 @@
             "label": "build apostle",
             "type": "shell",
             "command": "make",
-            "args": ["-C", "${workspaceFolder}/apostle", "BUILD=debug"],
+            "args": ["-C", "${workspaceFolder}/apostle", "BUILD=debug", "SANITIZERS=undefined"],
             "group": "build",
             "problemMatcher": ["$gcc"],
             "presentation": { "reveal": "silent", "panel": "shared" }
@@ -36,10 +37,20 @@
             "label": "build disciple",
             "type": "shell",
             "command": "make",
-            "args": ["-C", "${workspaceFolder}/disciple", "BUILD=debug"],
+            "args": ["-C", "${workspaceFolder}/disciple", "BUILD=debug", "BACKEND=test", "SANITIZERS=undefined"],
             "group": "build",
             "problemMatcher": ["$gcc"],
             "presentation": { "reveal": "silent", "panel": "shared" }
+        },
+        {
+            "label": "prepare live disciple",
+            "detail": "Build the windowed client and wait for Apostle's broadcast listener.",
+            "type": "process",
+            "command": "python3",
+            "args": ["${workspaceFolder}/scripts/wait-for-apostle.py"],
+            "dependsOn": "build disciple",
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "dedicated" }
         },
         {
             "label": "build evangelist",
@@ -55,7 +66,7 @@
             "label": "test all",
             "type": "shell",
             "command": "make",
-            "args": ["-C", "${workspaceFolder}", "check"],
+            "args": ["-C", "${workspaceFolder}", "check", "BUILD=debug", "SANITIZERS=undefined"],
             "group": { "kind": "test", "isDefault": true },
             "problemMatcher": ["$gcc"],
             "presentation": { "reveal": "always", "panel": "shared" }

@@ -1,15 +1,15 @@
 {
     // F5 debugging for Tabcast.
     //
-    // The default F5 target is the compound "Tabcast: daemon + client"
-    // at the bottom. It builds all three parts, then starts Apostle
+    // Select the compound "Tabcast: daemon + client" for F5.
+    // It builds all three parts, then starts Apostle
     // and Disciple together under gdb, so the extension has somewhere
     // to broadcast to and you can watch both ends.
     //
-    // Needs the C/C++ extension (ms-vscode.cpptools). Debug builds
-    // link the address and undefined behaviour sanitizers, so a bad
-    // access stops here with a report rather than somewhere later
-    // with a corrupted heap.
+    // Needs the C/C++ extension (ms-vscode.cpptools). F5 builds have
+    // debug symbols and undefined behaviour checks. The tasks select
+    // UBSan because this host's AppProtection preload conflicts with
+    // ASan. Normal make builds still enable both sanitizers.
     "version": "0.2.0",
     "configurations": [
         {
@@ -17,7 +17,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/bin/apostle",
-            // Foreground, so its log lands in the debug console
+            // Foreground, so its log lands in the integrated terminal
             // instead of the system journal.
             "args": ["--foreground", "--log-level", "debug"],
             "cwd": "${workspaceFolder}",
@@ -25,6 +25,14 @@
             "externalConsole": false,
             "MIMode": "gdb",
             "preLaunchTask": "build apostle",
+            "environment": [
+                {
+                    // LeakSanitizer cannot run under gdb's ptrace.
+                    // Address and undefined behaviour checks stay on.
+                    "name": "ASAN_OPTIONS",
+                    "value": "detect_leaks=0"
+                }
+            ],
             "setupCommands": [
                 {
                     "description": "Pretty printing for the standard library",
@@ -43,9 +51,8 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/bin/disciple",
-            // Apostle cannot broadcast yet, so the client opens the
-            // sample page instead. Once the protocol lands, drop the
-            // arguments and it will connect.
+            // Standalone preview. The compound uses the live client
+            // below, without --replay.
             "args": [
                 "--replay",
                 "${workspaceFolder}/disciple/tests/data/sample-page.png"
@@ -57,13 +64,9 @@
             "preLaunchTask": "build disciple",
             "environment": [
                 {
-                    // GTK allocates at startup and never frees it,
-                    // and a debug build links the address sanitizer.
-                    // Without this every windowed run ends in a page
-                    // of leak reports that belong to the toolkit. A
-                    // leak in Disciple's own code is still reported.
-                    "name": "LSAN_OPTIONS",
-                    "value": "suppressions=${workspaceFolder}/disciple/scripts/lsan.supp"
+                    // LeakSanitizer cannot run under gdb's ptrace.
+                    "name": "ASAN_OPTIONS",
+                    "value": "detect_leaks=0"
                 }
             ],
             "setupCommands": [
@@ -84,11 +87,11 @@
             "stopAtEntry": false,
             "externalConsole": false,
             "MIMode": "gdb",
-            "preLaunchTask": "build disciple",
+            "preLaunchTask": "prepare live disciple",
             "environment": [
                 {
-                    "name": "LSAN_OPTIONS",
-                    "value": "suppressions=${workspaceFolder}/disciple/scripts/lsan.supp"
+                    "name": "ASAN_OPTIONS",
+                    "value": "detect_leaks=0"
                 }
             ],
             "setupCommands": [
@@ -102,9 +105,9 @@
     ],
     "compounds": [
         {
-            // The F5 default. Listed first so VS Code preselects it.
+            // Select this target in Run and Debug for end-to-end use.
             "name": "Tabcast: daemon + client",
-            "configurations": ["Debug apostle", "Debug disciple"],
+            "configurations": ["Debug apostle", "Debug disciple (no arguments)"],
             "preLaunchTask": "build all",
             "stopAll": true,
             "presentation": { "group": "tabcast", "order": 1 }

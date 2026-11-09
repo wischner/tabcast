@@ -37,8 +37,8 @@ Three parts, named for how the message travels.
 | Part | State |
 | --- | --- |
 | Evangelist | **Working.** Control bar, capture clock, and frame upload are implemented. |
-| Apostle | **Runs, does not serve.** Console or daemon, syslog, pid file, signals, systemd unit. The listeners are not written. |
-| Disciple | **Renders.** `--replay` shows a page exactly as the reader will, in a window. No networking yet. |
+| Apostle | **Working.** Receives frames over HTTP and broadcasts them to connected readers over TCP. |
+| Disciple | **Working desktop client.** Receives live frames in a window; `--replay` previews a local image. The device backend is not written yet. |
 
 The wire protocol for both hops is specified in full in
 [docs/PROTOCOL.md](docs/PROTOCOL.md), so neither daemon has to invent
@@ -91,19 +91,45 @@ Firefox or Chrome, to run the extension.
 
 ## Debugging with F5
 
-In VS Code, **F5** runs the compound target **Tabcast: daemon + client**.
-It builds all three parts, then launches Apostle and Disciple together
-under gdb, with `stopAll` so closing one stops the other.
+In VS Code's **Run and Debug** dropdown, select **Tabcast: daemon +
+client**, then press **F5**. VS Code remembers the selected target;
+F5 on a standalone Disciple target does not start Apostle.
+
+The compound builds all three parts, then launches Apostle and Disciple
+under gdb, with `stopAll` so closing one stops the other. Disciple waits
+up to 15 seconds for Apostle's broadcast listener before launching.
 
 | | |
 | --- | --- |
-| Apostle | `--foreground --log-level debug`, so its log goes to the debug console rather than the journal. |
-| Disciple | `--replay disciple/tests/data/sample-page.png`, because Apostle cannot broadcast yet. Drop the argument once it can. |
+| Apostle | `--foreground --log-level debug`, with logs in the integrated terminal. |
+| Disciple | No arguments: connects to `127.0.0.1:8421` and opens a window for live frames. |
 
-Both are debug builds, linked with the address and undefined behaviour
-sanitizers, so a bad access stops in the debugger with a report rather
-than corrupting the heap and failing later. Needs the C/C++ extension
-(`ms-vscode.cpptools`) and `gdb`.
+F5 explicitly builds `BACKEND=test`, which requires
+`libgtkmm-3.0-dev`. If it is missing, the build reports the dependency
+instead of silently building a client with no display. The separate
+**Debug disciple** target still previews the bundled sample image.
+
+Both are debug builds with symbols and undefined behaviour checks.
+The VS Code tasks explicitly use `SANITIZERS=undefined`: the development
+machine preloads `AppProtection.so` through `/etc/ld.so.preload`, which
+conflicts with AddressSanitizer before the programs reach `main()`.
+Needs the C/C++ extension (`ms-vscode.cpptools`) and `gdb`.
+
+Normal `make` builds still use `SANITIZERS=address,undefined`. On a
+host with the preload conflict, build and test from a terminal with:
+
+```sh
+make BUILD=debug BACKEND=test SANITIZERS=undefined
+make check SANITIZERS=undefined
+```
+
+Sanitizer variants have separate build directories, so switching does
+not reuse incompatible objects. On a host compatible with ASan, change
+the VS Code tasks to `SANITIZERS=address,undefined` for address checks
+too. The launch configurations disable leak detection because it cannot
+run under gdb's ptrace. For program errors, read the integrated
+**Terminal**; the Debug Console's "exited with code 1" is only the exit
+summary.
 
 The build task also rebuilds the extension into `build/evangelist/`, so
 after F5 you can reload it in the browser and it will be current. See
@@ -134,9 +160,11 @@ everyone, so read
 [evangelist/README.md](evangelist/README.md#install) rather than
 guessing.
 
-Apostle does not serve yet, so a broadcast started today will report
-*Cannot reach Apostle at 127.0.0.1:8420*. That is the correct answer
-until the daemon is written.
+Start **Tabcast: daemon + client** with F5, wait for the Disciple
+window, then press **Broadcast** on a normal web page in Firefox.
+The extension uploads to `127.0.0.1:8420`; Disciple receives frames on
+port `8421`. A "No answer from Apostle" message means the daemon is
+not listening at the address configured in the extension.
 
 ## Repository layout
 
@@ -164,10 +192,14 @@ fully built tree is clean.
 | | |
 | --- | --- |
 | `build/apostle/<type>/` | Objects, deps, intermediate links. `<type>` is `debug` or `release`. |
-| `build/disciple/<type>/` | The same. |
+| `build/disciple/<type>/<backend>/` | Client objects and intermediate links, separated by display backend. |
 | `build/evangelist/<browser>/` | Unpacked extension. This is what you load with "load unpacked". |
 | `bin/apostle`, `bin/disciple` | The finished programs. |
 | `bin/evangelist-<version>-firefox.xpi`, `bin/evangelist-<version>-chrome.zip` | Packaged extensions, written by `make` or `make dist`. |
+
+Debug artifacts have an additional sanitizer subdirectory, such as
+`build/apostle/debug/undefined/` and
+`build/disciple/debug/test/address,undefined/`.
 
 Building from inside a part works the same way. `cd apostle && make`
 puts its output in the root `build/` and `bin/`, not in `apostle/`.

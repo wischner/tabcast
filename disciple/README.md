@@ -63,8 +63,17 @@ make help
 
 Needs `g++` with C++20 and GNU Make, plus gtkmm for the test client.
 Output goes to the repository root, not into this directory: objects
-land in `../build/disciple/<build type>/` and the finished client in
+land in `../build/disciple/<build type>/<backend>/` and the finished client in
 `../bin/disciple`.
+
+Each backend has separate artifacts, so switching from `BACKEND=none`
+to `BACKEND=test` rebuilds the windowed client without a manual clean.
+
+Debug builds add a `<sanitizers>/` subdirectory and default to
+`SANITIZERS=address,undefined`. On hosts where AppProtection or another
+system preload conflicts with AddressSanitizer, use
+`make SANITIZERS=undefined` and `make test SANITIZERS=undefined`.
+Debug symbols and undefined behaviour checks remain enabled.
 
 ### Backends
 

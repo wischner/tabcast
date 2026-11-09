@@ -40,6 +40,10 @@
 NAME     := disciple
 BUILD    ?= debug
 
+# Keep normal builds fully sanitized, with an explicit alternative for
+# hosts whose system-wide preload libraries conflict with ASan.
+SANITIZERS ?= address,undefined
+
 # The test client is built on gtkmm, the C++ binding for GTK 3, found
 # through pkg-config like any other system library. On Debian and
 # Ubuntu it is the libgtkmm-3.0-dev package.
@@ -62,7 +66,12 @@ TEST_DIR := tests
 
 BUILD_DIR := $(ROOT_DIR)/build/$(NAME)
 BIN_DIR   := $(ROOT_DIR)/bin
-OBJ_DIR   := $(BUILD_DIR)/$(BUILD)
+# Keep backend objects and links separate so installing gtkmm or
+# switching BACKEND cannot reuse a previously linked headless client.
+OBJ_DIR   := $(BUILD_DIR)/$(BUILD)/$(BACKEND)
+ifeq ($(BUILD),debug)
+    OBJ_DIR := $(OBJ_DIR)/$(SANITIZERS)
+endif
 
 CXX ?= g++
 
@@ -120,8 +129,8 @@ endif
 
 ifeq ($(BUILD),debug)
     CXXFLAGS += -g -Og -fno-omit-frame-pointer \
-                -fsanitize=address,undefined
-    LDFLAGS  += -fsanitize=address,undefined
+                -fsanitize=$(SANITIZERS)
+    LDFLAGS  += -fsanitize=$(SANITIZERS)
 else ifeq ($(BUILD),release)
     CXXFLAGS += -O2 -DNDEBUG
     # One self-contained executable. Not a full -static link: glibc
@@ -188,7 +197,7 @@ endif
 
 ## clean: remove this project's artifacts for the current build type
 clean:
-	@rm -rf $(OBJ_DIR)
+	@rm -rf $(BUILD_DIR)/$(BUILD)
 
 # Removes only what this project produced. bin/ is shared with the
 # other parts of the repository, so the program is deleted by name
