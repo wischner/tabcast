@@ -11,7 +11,7 @@ out to every registered e-ink reader on the network.
 | --- | --- | --- | --- |
 | Browser extension | **Evangelist** | JavaScript, MV3 | Firefox, Chrome |
 | Broadcast daemon | **Apostle** | Modern C++ | Ubuntu Linux |
-| E-ink client | **Disciple** | Modern C++, FreeInk SDK | XTEINK X4 |
+| E-ink client | **Disciple** | Modern C++, on inkerface (FreeInk) | XTEINK X4, any inkerface reader |
 
 **Evangelist** sees the page and begins the proclamation. It adds a
 control bar to every page with start, stop, and a refresh interval
@@ -20,16 +20,28 @@ and posts the image to Apostle.
 
 **Apostle** is sent to carry the message to the whole community. It
 accepts frames from Evangelist on loopback, keeps the newest frame, and
-distributes it to every registered Disciple plus any test client.
+distributes it to every registered Disciple.
 
 **Disciple** receives and displays the Word. It registers with Apostle,
 receives frames, and renders them on the e-ink panel. Multiple
 Disciples form the flock.
 
-Its display is chosen at build time: a window on a development machine
-through gtkmm, the real panel through the FreeInk SDK, or nothing at
-all. The reduction to panel size and grey depth is shared by all three,
-so the test client shows exactly what the device will.
+Disciple is an inkerface program and nothing else. inkerface (the
+sibling repository `../inkerface`) is the e-ink platform, directly on
+the FreeInk SDK: it drives the panel, buttons, Wi-Fi, and storage on
+every reader it supports, and emulates the X4 on a desktop with the
+same FreeInk renderer. Disciple uses inkerface's types directly, with no
+layer of its own between them, so it runs unchanged on any of those
+readers and in the emulation. Where Disciple needed something inkerface
+lacked (a soft access point, a network scan, listening sockets, UDP
+broadcast), inkerface was extended rather than worked around. The panel
+size comes from the display at run time, so each reader asks Apostle
+for pages sized for its own panel.
+
+Apostle reduces each page to the panel a reader describes in its hello:
+fitted, quantised to its grey levels, and packed (`image/gray-packed`).
+A reader therefore needs no image decoder and no memory for a colour
+page, which a microcontroller does not have.
 
 ## Data flow
 
@@ -51,8 +63,11 @@ so the test client shows exactly what the device will.
    +--+---------+---------+----+
       |         |         |
       v         v         v
-   Disciple  Disciple  test client       (LAN, framed TCP)
-   XTEINK    XTEINK    on Linux
+   Disciple  Disciple  Disciple          (LAN, framed TCP;
+                                          found by UDP discovery)
+   XTEINK X4 any       inkerface's
+             inkerface X4 emulation
+             reader    on Linux
 ```
 
 ## Design decisions
@@ -79,6 +94,18 @@ component in the security-relevant position.
 
 **Push, not poll.** Apostle pushes to Disciples so a battery-powered
 reader can idle on a socket rather than wake on a timer.
+
+**A phone is the reader's keyboard.** A reader out of the box knows
+no Wi-Fi network. It becomes an access point named `sheep_` and eight
+hex digits, shows the password on its panel, and serves a setup page
+that a joining phone opens by itself through a captive portal. The
+network chosen there is saved once it has been joined.
+
+**Readers find Apostle themselves.** A reader has no keyboard, so it
+is never told an address. On power-up it shows a splash, then
+broadcasts a UDP `discover` and joins whichever Apostle answers. It
+reconnects the same way whenever the link is lost, and keeps the last
+page on the panel while it does.
 
 ## Repository layout
 
@@ -116,12 +143,14 @@ must not remove Disciple.
 
 - Evangelist: control bar, capture loop, and frame upload implemented.
 - Apostle: done for v1. It runs in the foreground or as a detached
-  daemon, serves the loopback ingest and health endpoints, and fans
-  every accepted frame out to the registered Disciples over TCP, one
-  frame in flight per client. Host-side reduction to `gray-packed` is
-  not written: frames go on as the browser encoded them.
-- Disciple: the test client is done. It joins an Apostle, receives
-  broadcast frames, fits each page to 480 x 800, reduces it to four
-  grey levels, and shows it in a gtkmm window, acknowledging each one
-  so the daemon can pace itself. No FreeInk yet, so there is no
-  Disciple that runs on a reader.
+  daemon, serves the loopback ingest and health endpoints, answers
+  UDP discovery, and fans every accepted frame out to the registered
+  Disciples over TCP, one frame in flight per client. Readers that
+  accept `gray-packed` get each page reduced for their panel, decoded
+  once and reduced once per distinct panel.
+- Disciple: an inkerface program, working end to end in inkerface's
+  desktop emulation of the X4, and building as X4 firmware. On power-up
+  it shows a splash, gets onto Wi-Fi (a phone sets it up through the
+  reader's own `sheep_` access point), finds Apostle by UDP discovery,
+  joins it, and shows every page, reconnecting by itself when the link
+  is lost. Runs on a real X4; holding the power button switches it off.

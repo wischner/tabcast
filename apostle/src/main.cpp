@@ -14,10 +14,13 @@
 //   5. Take the pid file, so a second instance fails here rather than
 //      halfway through binding a port.
 //
-//   6. Bind both listeners, and only then start serving.
+//   6. Bind both listeners, then the discovery responder, and only
+//      then start serving. Discovery failing is a warning, not a
+//      stop: readers told the address can still join.
 //
 // After that the daemon is one poll loop over a signalfd, the two
-// listeners, and every connection either of them holds. A frame
+// listeners, the discovery socket, and every connection either
+// listener holds. A frame
 // posted by Evangelist is stored and fanned out to every registered
 // Disciple in the same turn of that loop.
 //
@@ -26,6 +29,7 @@
 //
 
 #include "apostle/broadcast_server.h"
+#include "apostle/discovery.h"
 #include "apostle/frame_store.h"
 #include "apostle/http_server.h"
 #include "apostle/log.h"
@@ -66,6 +70,7 @@ void log_banner(const options &opts) {
 // Parameters:
 //      ingest      - The ingest listener, already open.
 //      broadcast   - The broadcast listener, already open.
+//      discovery   - The discovery responder, open or not.
 //
 // Returns:
 //      True on a clean shutdown, false when the wait itself broke.
@@ -82,7 +87,8 @@ void log_banner(const options &opts) {
 //      path works before anything depends on it.
 //
 bool run_until_stopped(http_server &ingest,
-                       broadcast_server &broadcast) {
+                       broadcast_server &broadcast,
+                       discovery_responder &discovery) {
     const int signals = signal_open();
     if (signals < 0) {
         log_write(log_level::error, "cannot watch for signals: {}",
@@ -98,6 +104,7 @@ bool run_until_stopped(http_server &ingest,
         waiting.push_back(pollfd{signals, POLLIN, 0});
         ingest.watch(waiting);
         broadcast.watch(waiting);
+        discovery.watch(waiting);
 
         // A timeout rather than an indefinite wait, so keepalive
         // still runs on a daemon that nothing is talking to. That is
@@ -141,6 +148,7 @@ bool run_until_stopped(http_server &ingest,
             // everything poll() reported.
             ingest.ready(entry.fd);
             broadcast.ready(entry.fd, entry.revents);
+            discovery.ready(entry.fd);
         }
 
         broadcast.tick();
@@ -220,6 +228,21 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+    // Discovery is a convenience, not a requirement. A daemon that
+    // cannot answer it still serves every reader told its address,
+    // so a failed bind is a warning rather than a reason to stop.
+    discovery_responder discovery;
+    if (discovery.open(opts.broadcast_port, opts.broadcast_port,
+                       failure)) {
+        log_write(log_level::info, "discovery udp/*:{}",
+                  opts.broadcast_port);
+    } else {
+        log_write(log_level::warn, "{}", failure);
+        log_write(log_level::warn,
+                  "readers will not find this apostle by themselves "
+                  "and need its address");
+    }
+
     // The two halves are joined here and nowhere else. Neither
     // listener knows the other's type, which is what keeps the ingest
     // path testable without a flock and the fan-out testable without
@@ -230,13 +253,16 @@ int main(int argc, char *argv[]) {
     ingest.client_counter([&broadcast]() {
         return broadcast.client_count();
     });
+    broadcast.newest_frame([&frames]() { return frames.newest(); });
 
     log_write(log_level::info, "listening, waiting for disciples");
 
-    const bool clean = run_until_stopped(ingest, broadcast);
+    const bool clean =
+        run_until_stopped(ingest, broadcast, discovery);
 
     log_write(log_level::info, "shutting down after {} frames",
               frames.accepted());
+    discovery.close();
     broadcast.close();
     ingest.close();
     pid_file_release();

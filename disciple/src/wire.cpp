@@ -93,6 +93,10 @@ const char *message_type_name(message_type type) {
         return "pong";
     case message_type::bye:
         return "bye";
+    case message_type::discover:
+        return "discover";
+    case message_type::announce:
+        return "announce";
     default:
         return "unknown";
     }
@@ -141,7 +145,7 @@ decode_result decode_message(const std::uint8_t *data, std::size_t size,
 
     const std::uint8_t raw_type = data[5];
     if (raw_type < static_cast<std::uint8_t>(message_type::hello) ||
-        raw_type > static_cast<std::uint8_t>(message_type::bye)) {
+        raw_type > static_cast<std::uint8_t>(message_type::announce)) {
         error = "unknown message type " +
                 std::to_string(static_cast<int>(raw_type));
         return decode_result::failed;

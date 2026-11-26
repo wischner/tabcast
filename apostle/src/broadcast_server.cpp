@@ -16,6 +16,7 @@
 #include "apostle/log.h"
 #include "apostle/version.h"
 
+#include <algorithm>
 #include <cerrno>
 #include <cstring>
 #include <ctime>
@@ -88,6 +89,12 @@ struct broadcast_server::client {
     // What the peer said it accepts.
     bool takes_png = false;
     bool takes_jpeg = false;
+
+    // Set when the peer accepts image/gray-packed and described a panel
+    // that can be packed for. Such a peer is always sent its panel's
+    // pixels, reduced here, never the encoded page.
+    bool takes_packed = false;
+    panel_spec panel;
 
     // The device, for the log.
     std::string device;
@@ -213,6 +220,11 @@ void broadcast_server::ready(int descriptor, short revents) {
     if ((revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
         receive(*found->second);
     }
+}
+
+void broadcast_server::newest_frame(
+    std::function<const frame *()> source) {
+    _newest = std::move(source);
 }
 
 int broadcast_server::client_count() const {
@@ -356,15 +368,26 @@ void broadcast_server::dispatch(client &peer, message_type type,
         peer.takes_jpeg = json_array_has(text, "accepts", "image/jpeg");
         json_string(text, "device", peer.device);
 
-        if (!peer.takes_png && !peer.takes_jpeg) {
-            // Everything this daemon can send is an encoded image as
-            // the browser produced it. Decoding to gray-packed on the
-            // host is worth doing for a slow reader, but it is not
-            // written, and claiming to serve a format is worse than
-            // saying plainly that we cannot.
+        long long width = 0;
+        long long height = 0;
+        long long levels = 0;
+        json_number(text, "width", width);
+        json_number(text, "height", height);
+        json_number(text, "grayLevels", levels);
+        peer.panel.width = static_cast<int>(std::clamp(width, 0LL, 1LL << 20));
+        peer.panel.height =
+            static_cast<int>(std::clamp(height, 0LL, 1LL << 20));
+        peer.panel.gray_levels =
+            static_cast<int>(std::clamp(levels, 0LL, 1LL << 20));
+        peer.takes_packed =
+            json_array_has(text, "accepts", "image/gray-packed") &&
+            peer.panel.valid();
+
+        if (!peer.takes_png && !peer.takes_jpeg && !peer.takes_packed) {
             queue(peer, message_type::bye,
-                  "{\"reason\":\"this apostle only sends image/png and "
-                  "image/jpeg\"}");
+                  "{\"reason\":\"no format in common: this apostle sends "
+                  "image/png, image/jpeg, and image/gray-packed for a "
+                  "panel it can pack for\"}");
             flush(peer);
             drop(peer.descriptor, "no format in common");
             return;
@@ -378,11 +401,24 @@ void broadcast_server::dispatch(client &peer, message_type type,
                   std::to_string(keepalive_seconds) + "}");
 
         log_write(log_level::info,
-                  "disciple {} registered, device {}, accepts{}{}",
+                  "disciple {} registered, device {}, accepts{}{}{}",
                   peer.id,
                   peer.device.empty() ? "unstated" : peer.device,
                   peer.takes_png ? " png" : "",
-                  peer.takes_jpeg ? " jpeg" : "");
+                  peer.takes_jpeg ? " jpeg" : "",
+                  peer.takes_packed
+                      ? " gray-packed " + std::to_string(peer.panel.width) +
+                            "x" + std::to_string(peer.panel.height) + "/" +
+                            std::to_string(peer.panel.gray_levels)
+                      : std::string());
+
+        // The current page, so the reader does not sit on a status
+        // screen until the next one is turned.
+        if (_newest) {
+            if (const frame *current = _newest()) {
+                send_frame(peer, *current);
+            }
+        }
         break;
     }
 
@@ -460,27 +496,39 @@ void broadcast_server::publish(const frame &value) {
 // Put one frame on the wire for one Disciple.
 //
 void broadcast_server::send_frame(client &peer, const frame &value) {
-    const frame_format format = format_of(value.mime_type);
-    if ((format == frame_format::png && !peer.takes_png) ||
-        (format == frame_format::jpeg && !peer.takes_jpeg)) {
-        log_write(log_level::debug,
-                  "disciple {} does not accept {}, frame {} skipped",
-                  peer.id, value.mime_type, value.sequence);
-        return;
-    }
-
     frame_header header;
     header.sequence = static_cast<std::uint32_t>(value.sequence);
-    header.width = static_cast<std::uint16_t>(value.width);
-    header.height = static_cast<std::uint16_t>(value.height);
-    header.format = format;
-    header.gray_levels = 0;
+    const std::vector<std::uint8_t> *image = &value.bytes;
+
+    if (peer.takes_packed) {
+        image = reduced_for(value, peer.panel);
+        if (image == nullptr) {
+            return;
+        }
+        header.width = static_cast<std::uint16_t>(peer.panel.width);
+        header.height = static_cast<std::uint16_t>(peer.panel.height);
+        header.format = frame_format::gray_packed;
+        header.gray_levels =
+            static_cast<std::uint8_t>(peer.panel.gray_levels);
+    } else {
+        const frame_format format = format_of(value.mime_type);
+        if ((format == frame_format::png && !peer.takes_png) ||
+            (format == frame_format::jpeg && !peer.takes_jpeg)) {
+            log_write(log_level::debug,
+                      "disciple {} does not accept {}, frame {} skipped",
+                      peer.id, value.mime_type, value.sequence);
+            return;
+        }
+        header.width = static_cast<std::uint16_t>(value.width);
+        header.height = static_cast<std::uint16_t>(value.height);
+        header.format = format;
+        header.gray_levels = 0;
+    }
 
     std::vector<std::uint8_t> payload;
-    payload.reserve(frame_header_bytes + value.bytes.size());
+    payload.reserve(frame_header_bytes + image->size());
     encode_frame_header(header, payload);
-    payload.insert(payload.end(), value.bytes.begin(),
-                   value.bytes.end());
+    payload.insert(payload.end(), image->begin(), image->end());
 
     encode_message(message_type::frame, payload.data(), payload.size(),
                    peer.outbound);
@@ -488,6 +536,44 @@ void broadcast_server::send_frame(client &peer, const frame &value) {
     // Only wait for an ack from a peer that has shown it sends them.
     peer.awaiting_ack = peer.acks;
     flush(peer);
+}
+
+//
+// The frame reduced for one panel, from the cache when possible.
+//
+// Returns:
+//      The packed pixels, or null when the page cannot be decoded.
+//
+// Notes:
+//      A page is decoded once, and reduced once per distinct panel, so
+//      a flock of identical readers costs one reduction however large
+//      it is. The cache holds only the current page.
+//
+const std::vector<std::uint8_t> *
+broadcast_server::reduced_for(const frame &value, const panel_spec &panel) {
+    if (value.session != _cached_session ||
+        value.sequence != _cached_sequence) {
+        _cached_session = value.session;
+        _cached_sequence = value.sequence;
+        _reduced.clear();
+        std::string problem;
+        _decoded_ok = decode_to_grey(value.bytes, _decoded, problem);
+        if (!_decoded_ok) {
+            log_write(log_level::warn, "cannot decode frame {}: {}",
+                      value.sequence, problem);
+        }
+    }
+    if (!_decoded_ok) {
+        return nullptr;
+    }
+
+    for (const auto &entry : _reduced) {
+        if (entry.first == panel) {
+            return &entry.second;
+        }
+    }
+    _reduced.emplace_back(panel, reduce_to_panel(_decoded, panel));
+    return &_reduced.back().second;
 }
 
 //

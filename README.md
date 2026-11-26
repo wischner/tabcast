@@ -13,7 +13,7 @@ Three parts, named for how the message travels.
 | --- | --- | --- | --- |
 | Browser extension | **Evangelist** | Sees the page and begins the proclamation. Adds a control bar to every page and captures the tab every N seconds. | JavaScript, MV3 |
 | Broadcast daemon | **Apostle** | Is sent to carry the message to the whole community. Receives frames and distributes them to every registered reader. | Modern C++ |
-| E-ink client | **Disciple** | Receives and displays the Word so the faithful can see. Multiple Disciples form the flock. | Modern C++, FreeInk SDK |
+| E-ink client | **Disciple** | Receives and displays the Word so the faithful can see. Multiple Disciples form the flock. | Modern C++, on [inkerface](../inkerface) |
 
 ```
    Firefox / Chrome tab
@@ -28,8 +28,10 @@ Three parts, named for how the message travels.
    +--+---------+---------+----+
       |         |         |
       v         v         v
-   Disciple  Disciple  test client
-   XTEINK    XTEINK    on Linux
+   Disciple  Disciple  Disciple
+   XTEINK X4 any       inkerface's
+             inkerface X4 emulation
+             reader    on Linux
 ```
 
 ## Status
@@ -38,7 +40,7 @@ Three parts, named for how the message travels.
 | --- | --- |
 | Evangelist | **Working.** Control bar, capture clock, and frame upload are implemented. |
 | Apostle | **Working.** Receives frames over HTTP and broadcasts them to connected readers over TCP. |
-| Disciple | **Working desktop client.** Receives live frames in a window; `--replay` previews a local image. The device backend is not written yet. |
+| Disciple | **Working on a real Xteink X4.** An inkerface program: on power-up a reader shows a splash, joins Wi-Fi (set up from a phone through its own `sheep_` access point), finds Apostle by itself and shows every page; holding the power button switches it off. The X4 firmware and inkerface's desktop emulation of the X4 are the same code. |
 
 The wire protocol for both hops is specified in full in
 [docs/PROTOCOL.md](docs/PROTOCOL.md), so neither daemon has to invent
@@ -74,18 +76,20 @@ own `README.md`. The top level only orchestrates.
 Ubuntu or Debian:
 
 ```sh
-sudo apt install build-essential make python3 libgtkmm-3.0-dev
+sudo apt install build-essential make python3 cmake git patch \
+    libx11-dev libssl-dev
+git clone https://github.com/wischner/inkerface.git ../inkerface
 ```
 
 - **Evangelist** needs `python3` and nothing else. No npm, no bundler,
   no network access at build time.
-- **Apostle** and **Disciple** need `g++` with C++20 support and GNU
-  Make. No cmake.
-- **Disciple** picks its display at build time. With
-  `libgtkmm-3.0-dev` installed it builds the windowed test client,
-  `BACKEND=test`. Without it, it builds with no dependencies at all and
-  still runs the panel model and the tests. The FreeInk SDK is for the
-  real device and is not wired up yet.
+- **Apostle** needs `g++` with C++20 support and GNU Make, nothing else.
+- **Disciple** is an [inkerface](https://github.com/wischner/inkerface)
+  program, so it needs inkerface checked out beside this repository, as
+  `../inkerface`, and what inkerface needs: CMake, X11 and OpenSSL
+  headers, and git for its first download of the FreeInk SDK, which its
+  own build does. The X4 firmware also needs PlatformIO. See
+  `disciple/README.md`.
 
 Firefox or Chrome, to run the extension.
 
@@ -96,18 +100,13 @@ client**, then press **F5**. VS Code remembers the selected target;
 F5 on a standalone Disciple target does not start Apostle.
 
 The compound builds all three parts, then launches Apostle and Disciple
-under gdb, with `stopAll` so closing one stops the other. Disciple waits
-up to 15 seconds for Apostle's broadcast listener before launching.
+under gdb, with `stopAll` so closing one stops the other. They can start
+in either order: the reader keeps looking for Apostle until one answers.
 
 | | |
 | --- | --- |
 | Apostle | `--foreground --log-level debug`, with logs in the integrated terminal. |
-| Disciple | No arguments: connects to `127.0.0.1:8421` and opens a window for live frames. |
-
-F5 explicitly builds `BACKEND=test`, which requires
-`libgtkmm-3.0-dev`. If it is missing, the build reports the dependency
-instead of silently building a client with no display. The separate
-**Debug disciple** target still previews the bundled sample image.
+| Disciple | inkerface's preview window, showing the X4's panel pixel for pixel; any key is a button. The first run goes through Wi-Fi setup, at the address the window shows; its emulated flash in `build/disciple/storage` remembers the result. |
 
 Both are debug builds with symbols and undefined behaviour checks.
 The VS Code tasks explicitly use `SANITIZERS=undefined`: the development
@@ -119,7 +118,7 @@ Normal `make` builds still use `SANITIZERS=address,undefined`. On a
 host with the preload conflict, build and test from a terminal with:
 
 ```sh
-make BUILD=debug BACKEND=test SANITIZERS=undefined
+make BUILD=debug SANITIZERS=undefined
 make check SANITIZERS=undefined
 ```
 
@@ -137,17 +136,17 @@ after F5 you can reload it in the browser and it will be current. See
 step, which Firefox does not do on its own.
 
 **End to end works.** Press Broadcast in the browser and the page
-appears in the Disciple window, fitted to the reader's portrait panel
-and reduced to four grey levels. The path is Evangelist captures the
-tab, posts it to Apostle over loopback, Apostle fans it out over TCP,
-Disciple renders it and acknowledges.
+appears on the reader, fitted to its portrait panel and reduced to one
+bit a pixel. The path is Evangelist captures the tab, posts it to
+Apostle over loopback, Apostle reduces it for each reader's panel and
+fans it out over TCP, Disciple draws it and acknowledges.
 
-What is still missing is the device itself: `BACKEND=freeink` is not
-written, so the only Disciple that exists is the windowed test client
-on a development machine. Host-side reduction to `gray-packed` is not
-written either, so Apostle forwards the browser's PNG and lets the
-client do the work. That is the right trade on a desktop and the wrong
-one on a reader.
+The reader runs on a real Xteink X4: `make x4-upload` in `disciple/`
+builds it on inkerface and flashes it, and the same code runs in
+inkerface's desktop emulation of the X4. Apostle reduces every page to
+each reader's own panel (`image/gray-packed`), so a reader needs no image
+decoder. Pages are one bit deep for now; four grey levels need inkerface
+to expose the X4's grayscale mode.
 
 ## Getting started
 
@@ -161,7 +160,9 @@ everyone, so read
 guessing.
 
 Start **Tabcast: daemon + client** with F5, wait for the Disciple
-window, then press **Broadcast** on a normal web page in Firefox.
+window, set its Wi-Fi up once if it asks (any phone or browser on this
+network can open the address it shows), then press **Broadcast** on a
+normal web page in Firefox.
 The extension uploads to `127.0.0.1:8420`; Disciple receives frames on
 port `8421`. A "No answer from Apostle" message means the daemon is
 not listening at the address configured in the extension.

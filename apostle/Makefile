@@ -67,7 +67,7 @@ TEST_BINARIES := $(patsubst $(TEST_DIR)/%.cpp,$(OBJ_DIR)/$(TEST_DIR)/%,\
 
 # -MMD -MP writes a .d file beside every .o listing the headers it
 # read, which is what makes a header edit trigger a rebuild.
-CPPFLAGS += -I$(INC_DIR) -MMD -MP
+CPPFLAGS += -I$(INC_DIR) -I$(LIB_DIR) -MMD -MP
 CXXFLAGS += -std=c++20 -Wall -Wextra -pedantic
 
 ifeq ($(BUILD),debug)

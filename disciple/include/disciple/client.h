@@ -1,9 +1,9 @@
 //
-// The Disciple client entry logic.
+// The Disciple reader's entry logic.
 //
-// Kept separate from the process entry point, which is src/main.cpp
-// and does nothing but call this. That keeps everything the client
-// does linkable into a test binary, which brings its own main().
+// Kept separate from the entry point, src/main.cpp, which is inkerface's
+// program() and does nothing but call this, so that the tests can link
+// everything else.
 //
 // MIT License (see: LICENSE)
 // Copyright (C) 2026 Tomaz Stih
@@ -15,13 +15,15 @@
 namespace disciple {
 
 //
-// Run the client.
+// Run the reader until its input closes.
 //
 // Parameters:
-//      argc, argv  - Arguments as handed to the entry point.
+//      argc, argv  - Arguments as handed to program(). argc is 0 on a
+//                    reader.
 //
 // Returns:
-//      A process exit code.
+//      A process exit code. On a reader it never returns: the input
+//      never closes.
 //
 int run(int argc, char *argv[]);
 

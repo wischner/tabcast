@@ -1,5 +1,5 @@
 //
-// Command line parsing for the Disciple client.
+// Command line parsing for the Disciple reader.
 //
 // MIT License (see: LICENSE)
 // Copyright (C) 2026 Tomaz Stih
@@ -15,39 +15,24 @@ namespace disciple {
 namespace {
 
 //
-// Parse a decimal integer within an inclusive range.
+// Parse a port number, 1 to 65535.
 //
-// Parameters:
-//      text        - Argument text.
-//      low, high   - Accepted range.
-//      value       - Receives the parsed value on success.
-//
-// Returns:
-//      True when the whole argument parsed and fell in range.
-//
-bool parse_int(std::string_view text, int low, int high, int &value) {
+bool parse_port(std::string_view text, int &port) {
     int parsed = 0;
     const char *end = text.data() + text.size();
     const auto result = std::from_chars(text.data(), end, parsed);
-
-    if (result.ec != std::errc {} || result.ptr != end) {
+    if (result.ec != std::errc{} || result.ptr != end || parsed < 1 ||
+        parsed > 65535) {
         return false;
     }
-    if (parsed < low || parsed > high) {
-        return false;
-    }
-    value = parsed;
+    port = parsed;
     return true;
 }
 
 //
 // Fetch the value that follows an option.
 //
-// Returns:
-//      True when a value was present.
-//
-bool take_value(int argc, char *argv[], int &index,
-                std::string_view &value) {
+bool take_value(int argc, char *argv[], int &index, std::string_view &value) {
     if (index + 1 >= argc) {
         return false;
     }
@@ -57,37 +42,26 @@ bool take_value(int argc, char *argv[], int &index,
 
 } // namespace
 
-bool options::is_replay() const {
-    return !replay.empty();
-}
-
 void print_usage(std::ostream &out) {
     out << "usage: disciple [options]\n"
         << "\n"
-        << "Tabcast e-ink client. Joins an Apostle daemon and renders "
-           "the frames\n"
-        << "it broadcasts, reduced to what the panel can actually "
-           "show:\n"
-        << "  " << panel_width << "x" << panel_height << " at "
-        << panel_gray_levels << " grey levels.\n"
-        << "\n"
-        << "With --replay it renders a local image instead of "
-           "connecting, which\n"
-        << "shows exactly how a page will look on the reader without "
-           "needing a\n"
-        << "daemon or a device.\n"
+        << "Tabcast e-ink reader. Gets onto Wi-Fi, finds an Apostle daemon "
+           "on the LAN,\n"
+        << "joins it, and shows every page it broadcasts. Runs on inkerface: "
+           "on a\n"
+        << "reader with no arguments, on a desktop in inkerface's emulation "
+           "(set\n"
+        << "INKERFACE_PREVIEW=1 for its window).\n"
         << "\n"
         << "options:\n"
-        << "  -r, --replay FILE   render a local PNG or JPEG instead "
-           "of connecting\n"
-        << "  -s, --save FILE     write the rendered panel frame to a "
-           "PNG\n"
-        << "  -z, --zoom N        magnify the viewer 1 to " << max_zoom
-        << " times (default 1)\n"
-        << "  -n, --no-view       render without opening a window\n"
-        << "      --host HOST     Apostle to join (default 127.0.0.1)\n"
-        << "      --port PORT     broadcast port (default "
-        << default_broadcast_port << ")\n"
+        << "      --host HOST     join this Apostle instead of looking for "
+           "one\n"
+        << "      --port PORT     broadcast port, tcp to join and udp to look "
+           "on\n"
+        << "                      (default " << default_broadcast_port << ")\n"
+        << "      --wifi-setup    go straight to Wi-Fi setup, even with a "
+           "network\n"
+        << "                      saved\n"
         << "      --version       print the version and exit\n"
         << "  -h, --help          print this text and exit\n";
 }
@@ -106,37 +80,8 @@ bool parse_arguments(int argc, char *argv[], options &opts,
             opts.show_version = true;
             return true;
         }
-
-        if (arg == "--replay" || arg == "-r") {
-            if (!take_value(argc, argv, i, value)) {
-                error = std::string(arg) + " needs a file";
-                return false;
-            }
-            opts.replay.assign(value);
-            continue;
-        }
-        if (arg == "--save" || arg == "-s") {
-            if (!take_value(argc, argv, i, value)) {
-                error = std::string(arg) + " needs a file";
-                return false;
-            }
-            opts.save.assign(value);
-            continue;
-        }
-        if (arg == "--zoom" || arg == "-z") {
-            if (!take_value(argc, argv, i, value)) {
-                error = std::string(arg) + " needs a number";
-                return false;
-            }
-            if (!parse_int(value, 1, max_zoom, opts.zoom)) {
-                error = std::string(value) + " is not a zoom between 1 and "
-                        + std::to_string(max_zoom);
-                return false;
-            }
-            continue;
-        }
-        if (arg == "--no-view" || arg == "-n") {
-            opts.no_view = true;
+        if (arg == "--wifi-setup") {
+            opts.wifi_setup = true;
             continue;
         }
         if (arg == "--host") {
@@ -152,13 +97,12 @@ bool parse_arguments(int argc, char *argv[], options &opts,
                 error = "--port needs a port number";
                 return false;
             }
-            if (!parse_int(value, 1, 65535, opts.port)) {
+            if (!parse_port(value, opts.port)) {
                 error = std::string(value) + " is not a valid port";
                 return false;
             }
             continue;
         }
-
         error = "unknown option " + std::string(arg);
         return false;
     }

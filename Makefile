@@ -6,7 +6,9 @@
 #
 #   evangelist   browser extension, sees the page and proclaims it
 #   apostle      Linux daemon, carries the message to the flock
-#   disciple     e-ink client, displays it for the faithful
+#   disciple     e-ink reader, displays it for the faithful. An
+#                inkerface program: it needs ../inkerface beside this
+#                repository, and runs on readers and on a desktop
 #
 # This file only orchestrates. Every target here fans out to the same
 # target in each part, so `make` builds everything and `make clean`
@@ -46,12 +48,10 @@ PARTS := $(WEB) $(NATIVE)
 # release links the C++ runtime in and ships one file per program.
 BUILD ?= debug
 
-# Debian packaging always makes a release build. The test backend is
-# the distributable desktop Disciple; override this only when testing
-# the package machinery on a machine without gtkmm.
+# Debian packaging always makes a release build. The packaged Disciple is
+# the reader in inkerface's desktop emulation of the X4.
 PACKAGE_VERSION ?= $(shell python3 -c \
     'import json; print(json.load(open("evangelist/src/manifest.json"))["version"])')
-DISCIPLE_BACKEND ?= test
 
 .PHONY: all $(PARTS) release dist deb check test clean distclean help
 
@@ -78,8 +78,7 @@ dist: $(NATIVE)
 ## deb: build one Debian package containing all three parts
 deb:
 	@$(MAKE) --no-print-directory -C apostle BUILD=release
-	@$(MAKE) --no-print-directory -C disciple BUILD=release \
-	    BACKEND=$(DISCIPLE_BACKEND)
+	@$(MAKE) --no-print-directory -C disciple BUILD=release
 	@$(MAKE) --no-print-directory -C evangelist dist
 	@packaging/build-deb.sh "$(PACKAGE_VERSION)"
 

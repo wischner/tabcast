@@ -67,7 +67,8 @@ render_control() {
 
 # Stage the payload under the conventional debian/<package> path. This
 # also gives dpkg-shlibdeps the package context it expects while it
-# calculates GTK and libc dependency names from the actual binaries.
+# calculates X11, OpenSSL, and libc dependency names from the actual
+# binaries.
 scan_dir="$work_dir/scan"
 package_root="$scan_dir/debian/tabcast"
 mkdir -p "$package_root/DEBIAN"

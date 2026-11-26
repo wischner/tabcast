@@ -56,7 +56,12 @@ enum class message_type : std::uint8_t {
     ack = 0x04,
     ping = 0x05,
     pong = 0x06,
-    bye = 0x07
+    bye = 0x07,
+
+    // Discovery, carried in UDP datagrams rather than on the TCP
+    // stream. See "Discovery" in docs/PROTOCOL.md.
+    discover = 0x08,
+    announce = 0x09
 };
 
 //

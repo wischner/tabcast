@@ -200,8 +200,37 @@ void test_json() {
 
 } // namespace
 
+//
+// The discovery types sit right after bye, as the document numbers
+// them, and decode like any other message.
+//
+void test_discovery_types() {
+    check(static_cast<int>(message_type::discover) == 0x08,
+          "discover is type 0x08");
+    check(static_cast<int>(message_type::announce) == 0x09,
+          "announce is type 0x09");
+
+    std::vector<std::uint8_t> out;
+    encode_message(message_type::announce, "{\"port\":8421}", out);
+
+    message_type type = message_type::ping;
+    std::size_t offset = 0;
+    std::size_t size = 0;
+    std::string error;
+    check(decode_message(out.data(), out.size(), type, offset, size,
+                         error) == decode_result::done &&
+              type == message_type::announce && size == 13,
+          "an announce decodes");
+
+    out[5] = 0x0a;
+    check(decode_message(out.data(), out.size(), type, offset, size,
+                         error) == decode_result::failed,
+          "the type after announce is unknown");
+}
+
 int main() {
     test_envelope_bytes();
+    test_discovery_types();
     test_decode();
     test_decode_refusals();
     test_frame_header();

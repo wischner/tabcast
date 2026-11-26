@@ -15,7 +15,7 @@
             "detail": "Extension, daemon, and client. Used by F5.",
             "type": "shell",
             "command": "make",
-            "args": ["-C", "${workspaceFolder}", "BUILD=debug", "BACKEND=test", "SANITIZERS=undefined"],
+            "args": ["-C", "${workspaceFolder}", "BUILD=debug", "SANITIZERS=undefined"],
             "group": { "kind": "build", "isDefault": true },
             "problemMatcher": ["$gcc"],
             "presentation": {
@@ -37,20 +37,10 @@
             "label": "build disciple",
             "type": "shell",
             "command": "make",
-            "args": ["-C", "${workspaceFolder}/disciple", "BUILD=debug", "BACKEND=test", "SANITIZERS=undefined"],
+            "args": ["-C", "${workspaceFolder}/disciple", "BUILD=debug", "SANITIZERS=undefined"],
             "group": "build",
             "problemMatcher": ["$gcc"],
             "presentation": { "reveal": "silent", "panel": "shared" }
-        },
-        {
-            "label": "prepare live disciple",
-            "detail": "Build the windowed client and wait for Apostle's broadcast listener.",
-            "type": "process",
-            "command": "python3",
-            "args": ["${workspaceFolder}/scripts/wait-for-apostle.py"],
-            "dependsOn": "build disciple",
-            "problemMatcher": [],
-            "presentation": { "reveal": "always", "panel": "dedicated" }
         },
         {
             "label": "build evangelist",

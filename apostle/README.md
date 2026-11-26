@@ -2,8 +2,8 @@
 
 The Tabcast broadcast daemon. The one who is sent to carry the message
 to the whole community: it receives frames from the Evangelist browser
-extension and distributes them to every registered Disciple, and to the
-Linux test client.
+extension and distributes them to every registered Disciple, readers
+and inkerface's desktop emulation of one alike.
 
 Modern C++, Ubuntu Linux.
 
@@ -18,12 +18,12 @@ detached daemon, logs to the console or to syslog, takes a locked pid
 file, handles signals, and shuts down cleanly, saying bye to the flock
 on the way out.
 
+Readers that accept `image/gray-packed` are sent each page already
+reduced for their panel, so a reader needs no image decoder. See
+[Reducing pages](#reducing-pages).
+
 What is not built yet:
 
-- Host-side reduction to `gray-packed`. A frame is forwarded in the
-  format the browser encoded it, so the client decodes, scales, and
-  quantises. That is the wrong trade for a slow reader and the right
-  one for a desktop test client, which is all there is today.
 - Pairing. Any host that can reach the broadcast port joins the flock,
   which `docs/PROTOCOL.md` says is acceptable on a trusted LAN and
   nowhere else.
@@ -85,6 +85,46 @@ and waiting forever for one would stop the stream after a single frame.
 Silence for `keepalive` seconds brings a `ping`, and no answer within
 another `keepalive` closes the connection.
 
+A Disciple that registers is sent the newest frame straight after its
+`welcome`, so a reader switched on mid-broadcast, or one that has just
+reconnected, shows the current page at once.
+
+## Reducing pages
+
+A reader with a microcontroller cannot decode a browser capture: a
+1200 x 720 page is 3.4 MB as colour pixels, ten times the memory of an
+ESP32-C3. So a Disciple that lists `image/gray-packed` in its hello is
+sent its panel's own pixels instead, for the `width`, `height`, and
+`grayLevels` it described: the page fitted to the panel, averaged down,
+quantised to its levels without dithering, and packed. For the X4 at one
+bit that is 48 KB a page.
+
+Each page is decoded once, to luminance, and reduced once per distinct
+panel, so a flock of identical readers costs one reduction however large
+it is. Only the current page is cached. `src/reduce.cpp` does the
+arithmetic, which is the same as Disciple's own render path, so a page
+reduced here looks exactly like one a desktop Disciple reduced for
+itself. Readers that do not accept `gray-packed` are sent the page as the
+browser encoded it, as before.
+
+Decoding is `stb_image` (PNG and JPEG, from memory only), vendored
+unmodified in `lib/stb/`, MIT or public domain. It is the only third
+party code in Apostle; see `lib/README.md`.
+
+## Discovery
+
+Readers are not configured with an address. They broadcast a
+`discover` datagram on UDP `*:8421`, the broadcast port's number, and
+Apostle answers each one directly with an `announce` naming the TCP
+port to join. Nothing is sent unasked, so an idle network carries no
+beacon traffic. See "Discovery" in `docs/PROTOCOL.md`.
+
+The socket binds every interface, loopback included, which is what lets
+a reader emulated on the same machine find the daemon with no network. If
+the UDP port cannot be bound the daemon logs a warning and carries on:
+readers can still join it by address. A host firewall must allow UDP
+8421 in as well as TCP 8421, or readers will sit on **Connecting...**.
+
 The envelope is in `include/apostle/wire.h`, which like the HTTP parser
 has no I/O in it and is checked byte for byte against the protocol
 document in `tests/test_wire.cpp`. That file is duplicated in the
@@ -138,7 +178,8 @@ bin/apostle --log-level debug
 2026-08-21 07:59:44 info  apostle 0.1.0 starting, protocol 1
 2026-08-21 07:59:44 info  ingest    http://127.0.0.1:8420/api/v1/frame
 2026-08-21 07:59:44 info  broadcast tcp/*:8421
-2026-08-21 07:59:44 warn  the listeners are not implemented yet, idling
+2026-08-21 07:59:44 info  discovery udp/*:8421
+2026-08-21 07:59:44 info  listening, waiting for disciples
 ```
 
 ### As a daemon
@@ -187,7 +228,7 @@ Reach for `--daemon` only on a machine with no service manager.
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `--ingest-port PORT` | 8420 | Loopback port Evangelist posts frames to. |
-| `--broadcast-port PORT` | 8421 | Port Disciples connect to. |
+| `--broadcast-port PORT` | 8421 | Port Disciples connect to over TCP, and discover on over UDP. |
 | `-d`, `--daemon` | | Detach from the terminal, log to syslog. |
 | `-f`, `--foreground` | default | Stay attached, log to stderr. |
 | `-p`, `--pid-file PATH` | none | Write and lock a pid file. |
@@ -242,24 +283,38 @@ no pairing in v1 either: any host that can reach the port and speak
 else. Pairing tokens are the first thing to add before this leaves a
 private network.
 
+Discovery adds one more LAN-facing socket, UDP 8421. It answers only
+well formed `discover` datagrams, with a reply of about a hundred
+bytes, and never sends anything unasked. It also makes the broadcast
+port easy to find, which is one more reason pairing must come before
+any untrusted network.
+
 ## Layout
 
 ```
 apostle/
 ├── Makefile
-├── include/apostle/     public headers
-│   ├── version.h        version, protocol revision, default ports
-│   ├── log.h            levels and sinks
-│   ├── options.h        the command line
-│   └── runtime.h        detaching, pid file, signals
-├── src/                 application sources
-│   ├── main.cpp         startup order and the wait loop
-│   ├── log.cpp
-│   ├── options.cpp
-│   └── runtime.cpp
-├── lib/                 project and third-party libraries
-└── tests/
-    └── test_options.cpp 23 checks, run with `make test`
+├── include/apostle/       public headers
+│   ├── version.h          version, protocol revision, default ports
+│   ├── log.h              levels and sinks
+│   ├── options.h          the command line
+│   ├── runtime.h          detaching, pid file, signals
+│   ├── http.h             the ingest request parser, no I/O
+│   ├── http_server.h      the loopback ingest listener
+│   ├── frame_store.h      the newest frame, and nothing older
+│   ├── wire.h             the Disciple protocol, shared with disciple/
+│   ├── broadcast_server.h the flock: registry, fan-out, flow control
+│   ├── reduce.h           pages reduced to a reader's panel
+│   └── discovery.h        answering readers that look for Apostle
+├── src/                   application sources, one per header, and
+│   └── main.cpp           the startup order and the poll loop
+├── lib/
+│   └── stb/               stb_image, vendored, PNG and JPEG decoding
+└── tests/                 run with `make test`
+    ├── test_options.cpp
+    ├── test_http.cpp
+    ├── test_wire.cpp      the envelope, byte for byte
+    └── test_reduce.cpp    fit, quantise, and pack, byte for byte
 ```
 
 No `build/` or `bin/` here. Both live at the repository root and are

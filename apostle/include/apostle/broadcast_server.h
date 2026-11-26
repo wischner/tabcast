@@ -22,11 +22,14 @@
 #define APOSTLE_BROADCAST_SERVER_H
 
 #include "apostle/frame_store.h"
+#include "apostle/reduce.h"
 #include "apostle/wire.h"
 
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <poll.h>
@@ -119,6 +122,21 @@ public:
     //
     int client_count() const;
 
+    //
+    // Say where the newest frame can be found.
+    //
+    // Parameters:
+    //      source      - Returns the newest frame, or null when
+    //                    nothing has been posted yet.
+    //
+    // Notes:
+    //      A Disciple that registers is sent this frame straight
+    //      after its welcome. A reader switched on in the middle of
+    //      a broadcast then shows the current page at once, instead
+    //      of waiting for the page to be turned.
+    //
+    void newest_frame(std::function<const frame *()> source);
+
 private:
     struct client;
 
@@ -128,12 +146,22 @@ private:
     void dispatch(client &peer, message_type type,
                   const std::uint8_t *payload, std::size_t size);
     void send_frame(client &peer, const frame &value);
+    const std::vector<std::uint8_t> *reduced_for(const frame &value,
+                                                 const panel_spec &panel);
     void queue(client &peer, message_type type, std::string_view payload);
     void drop(int descriptor, const char *why);
 
     int _listener = -1;
     int _next_id = 1;
     std::map<int, std::unique_ptr<client>> _clients;
+    std::function<const frame *()> _newest;
+
+    // The current page, decoded once, and reduced once per panel.
+    std::string _cached_session;
+    long long _cached_sequence = -1;
+    grey_image _decoded;
+    bool _decoded_ok = false;
+    std::vector<std::pair<panel_spec, std::vector<std::uint8_t>>> _reduced;
 };
 
 } // namespace apostle

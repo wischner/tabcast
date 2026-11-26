@@ -47,38 +47,13 @@
             ]
         },
         {
+            // The reader, in inkerface's emulation of the X4: its preview
+            // window shows the panel pixel for pixel, and any key is a
+            // button. The emulated internal flash, where the reader keeps
+            // its Wi-Fi settings and name, lives in build/disciple/storage.
+            // Started in either order with Apostle: the reader keeps
+            // looking until one answers.
             "name": "Debug disciple",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/bin/disciple",
-            // Standalone preview. The compound uses the live client
-            // below, without --replay.
-            "args": [
-                "--replay",
-                "${workspaceFolder}/disciple/tests/data/sample-page.png"
-            ],
-            "cwd": "${workspaceFolder}",
-            "stopAtEntry": false,
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "preLaunchTask": "build disciple",
-            "environment": [
-                {
-                    // LeakSanitizer cannot run under gdb's ptrace.
-                    "name": "ASAN_OPTIONS",
-                    "value": "detect_leaks=0"
-                }
-            ],
-            "setupCommands": [
-                {
-                    "description": "Pretty printing for the standard library",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "Debug disciple (no arguments)",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/bin/disciple",
@@ -87,9 +62,15 @@
             "stopAtEntry": false,
             "externalConsole": false,
             "MIMode": "gdb",
-            "preLaunchTask": "prepare live disciple",
+            "preLaunchTask": "build disciple",
             "environment": [
+                { "name": "INKERFACE_PREVIEW", "value": "1" },
                 {
+                    "name": "INKERFACE_STORAGE_ROOT",
+                    "value": "${workspaceFolder}/build/disciple/storage"
+                },
+                {
+                    // LeakSanitizer cannot run under gdb's ptrace.
                     "name": "ASAN_OPTIONS",
                     "value": "detect_leaks=0"
                 }
@@ -107,7 +88,7 @@
         {
             // Select this target in Run and Debug for end-to-end use.
             "name": "Tabcast: daemon + client",
-            "configurations": ["Debug apostle", "Debug disciple (no arguments)"],
+            "configurations": ["Debug apostle", "Debug disciple"],
             "preLaunchTask": "build all",
             "stopAll": true,
             "presentation": { "group": "tabcast", "order": 1 }
