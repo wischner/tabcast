@@ -55,6 +55,10 @@
     // of sitting at zero looking stalled.
     let sending = false;
 
+    // Separate from sending: hide only until the screenshot is taken,
+    // so controls remain usable during hashing and network upload.
+    let capturing = false;
+
     // True while a start or stop request is in flight.
     let busy = false;
 
@@ -137,6 +141,9 @@
     //      tab the user switched to instead of this one.
     //
     async function tick() {
+        if (sending) {
+            return;
+        }
         if (!view.owned) {
             clearTick();
             return;
@@ -148,16 +155,24 @@
         }
 
         sending = true;
+        capturing = true;
         render();
 
         let reply;
         try {
-            reply = await send({
-                type: MSG.TICK,
-                title: document.title,
-                url: location.href
-            });
+            // Wait for the browser to paint the page without our bar.
+            // A tab hidden during this wait must not capture another
+            // tab, nor leave its controls hidden indefinitely.
+            if (await waitForCapturePaint() &&
+                document.visibilityState === "visible" && view.owned) {
+                reply = await send({
+                    type: MSG.TICK,
+                    title: document.title,
+                    url: location.href
+                });
+            }
         } finally {
+            capturing = false;
             sending = false;
             render();
         }
@@ -169,7 +184,30 @@
             clearTick();
             return;
         }
-        scheduleTick();
+        if (view.owned) {
+            scheduleTick();
+        }
+    }
+
+    //
+    // Allow a paint between two animation frames before taking the
+    // screenshot. Abort the wait after a second: hidden tabs can stop
+    // animation callbacks, but the bar must still be restored.
+    //
+    function waitForCapturePaint() {
+        return new Promise((resolve) => {
+            let animation;
+            const timeout = setTimeout(() => {
+                cancelAnimationFrame(animation);
+                resolve(false);
+            }, 1000);
+            animation = requestAnimationFrame(() => {
+                animation = requestAnimationFrame(() => {
+                    clearTimeout(timeout);
+                    resolve(true);
+                });
+            });
+        });
     }
 
     // ---------------------------------------------------------------
@@ -280,6 +318,9 @@
         } else if (message?.type === MSG.TOGGLE_UI) {
             hideOverride = !isHidden();
             render();
+        } else if (message?.type === MSG.CAPTURE_FINISHED) {
+            capturing = false;
+            render();
         }
     }
 
@@ -349,7 +390,7 @@
             countdown: countdownModel(live),
             canStart: !busy && !view.broadcasting,
             canStop: !busy && view.owned,
-            hidden: isHidden()
+            hidden: capturing || isHidden()
         });
 
         if (live && countdownTimer === null) {

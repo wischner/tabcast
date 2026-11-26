@@ -142,7 +142,22 @@ async function onTick(message, tab) {
     const settings = await loadSettings();
 
     try {
-        const frame = await captureFrame(state.windowId, settings);
+        let frame;
+        try {
+            frame = await captureFrame(state.windowId, settings);
+        } finally {
+            // Restore the bar as soon as the screenshot is finished,
+            // even on failure. Uploading may take several seconds.
+            await api.tabs.sendMessage(
+                tab.id,
+                { type: MSG.CAPTURE_FINISHED },
+                { frameId: 0 }
+            ).catch((error) => {
+                // Navigation may have removed the original content
+                // script. It also restores the bar when TICK settles.
+                console.warn("[evangelist] Cannot restore controls:", error);
+            });
+        }
         const hash = await hashFrame(frame.bytes);
 
         if (settings.skipUnchanged && hash === state.lastHash) {

@@ -101,7 +101,7 @@ icons: $(ICONS)
 $(ICONS): $(TOOLS)/make_icons.py
 	@$(PYTHON) $(TOOLS)/make_icons.py $(SRC)/icons
 
-## check: syntax check every source file
+## check: syntax check sources and run capture lifecycle tests
 check:
 	@for f in $(JSON); do \
 	    $(PYTHON) -c "import json,sys; json.load(open(sys.argv[1]))" $$f \
@@ -113,8 +113,9 @@ check:
 	        node --input-type=module --check < $$f || exit 1; \
 	    done; \
 	    echo "scripts parse"; \
+	    node --test tests/*.mjs || exit 1; \
 	else \
-	    echo "node not installed, skipping the JavaScript syntax check"; \
+	    echo "node not installed, skipping JavaScript checks and tests"; \
 	fi
 
 # Removes only what this project produced. bin/ is shared with the

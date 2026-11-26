@@ -14,7 +14,7 @@ The only dependency is `python3`. No npm, no bundler, no network.
 ```sh
 make            # unpacked trees plus loadable archives, see below
 make dist       # same packaged build, for distribution workflows
-make check      # syntax check the manifests and the scripts
+make check      # syntax checks and capture lifecycle tests (Node if available)
 make clean
 ```
 
@@ -66,6 +66,10 @@ is no extra step.
 
 Every http and https page gets a control bar in the bottom right
 corner.
+
+Broadcast frames contain only the web page. Evangelist briefly hides
+its control bar for each screenshot, then restores it before uploading
+the image. The page keeps its original layout and scroll position.
 
 - **Broadcast** starts capturing this tab. The first frame goes out
   immediately, so a daemon that is down is reported at once rather

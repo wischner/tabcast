@@ -30,6 +30,8 @@
         STOP: "broadcast:stop",
         // content -> background, capture and send one frame now.
         TICK: "frame:tick",
+        // background -> content, screenshot taken; restore controls.
+        CAPTURE_FINISHED: "frame:captured",
         // background -> content, show or hide the control bar.
         TOGGLE_UI: "ui:toggle",
         // options -> background, check whether Apostle answers.
