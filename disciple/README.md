@@ -52,7 +52,8 @@ better off with the words they had than with a status screen.
 
 What is not done yet:
 
-- Switching off has been flashed but not yet tried on the device.
+- Switching off is confirmed on the device; waking again on the power
+  button is not yet.
 - A considered refresh policy. The reader refreshes fast and does a
   full, flashing refresh every eighth frame to clear ghosting.
 - Remembering the last Apostle across power cycles. Discovery is cheap
@@ -103,55 +104,47 @@ letter.
 
 ## Build
 
+`make` at the repository root builds it, with the other two parts, in
+the build image; see the top-level README. `PLATFORM` chooses which
+Disciple:
+
 ```sh
-make                 # debug build, the desktop emulation, into ../bin/disciple
-make BUILD=release   # release build
-make run             # run it in inkerface's preview window
-make test            # build and run the tests
-make x4              # Xteink X4 firmware into ../bin/disciple-x4.bin
-make x4-upload       # build the firmware and flash it over USB
-make clean
-make help
+make                        # the emulator, into ../bin/disciple
+make PLATFORM=x4            # Xteink X4 firmware, into ../bin/disciple-x4.bin
+make deploy PLATFORM=x4     # that firmware, flashed over USB
+make run                    # Apostle, Evangelist, and the emulator, here
+make help                   # every platform
 ```
 
-inkerface must be checked out beside tabcast, so `wischner/inkerface`
-next to `wischner/tabcast` (`../../inkerface` from here). Point
-`INKERFACE_DIR` elsewhere if yours is not there. Every build runs
-inkerface's own `make` first, which downloads the FreeInk SDK the first
-time and builds inkerface's libraries into inkerface's own `build/`.
-Disciple links those and inkerface's desktop entry point, `main()`,
-which calls Disciple's `program()`.
-
-Needs `g++` with C++20 and GNU Make, plus what inkerface needs: CMake,
-X11 and OpenSSL headers, and git and Python 3 for its first download.
-The firmware needs PlatformIO. Output goes to the repository root, not
-into this directory: objects land in `../build/disciple/<build type>/`,
-the program in `../bin/disciple`, and firmware in
-`../bin/disciple-x4.bin`.
-
-Debug builds add a `<sanitizers>/` subdirectory and default to
-`SANITIZERS=address,undefined`. On hosts where AppProtection or another
-system preload conflicts with AddressSanitizer, use
-`make SANITIZERS=undefined` and `make test SANITIZERS=undefined`.
+inkerface is downloaded into `../deps/inkerface/` the first time, at
+the revision the top-level `Makefile` pins, and it downloads the FreeInk
+SDK into itself. The emulator links inkerface's three libraries, built
+by inkerface's own CMake project into inkerface's own `build/`, and
+inkerface's desktop entry point, `main()`, which calls Disciple's
+`program()`. Objects land in `../build/disciple/<build type>/`.
 
 ### The firmware
 
-`make x4` runs PlatformIO on `platformio.ini`, which uses inkerface's
-platform library and its FreeInk cache exactly as inkerface's own
-firmware does, and builds every source in `src/`. inkerface's Arduino
-`setup()` calls `program()`. The X4 image is about 1.4 MB of the 3 MB
-firmware slot and 47 KB of static RAM.
+A reader platform is an `[env:...]` in `platformio.ini`, which uses
+inkerface's platform library and its FreeInk cache exactly as
+inkerface's own firmware does, and builds every source in `src/`.
+inkerface's Arduino `setup()` calls `program()`. PlatformIO runs in the
+build image, with its toolchains in `../deps/platformio/`. The X4 image
+is about 1.4 MB of the 3 MB firmware slot and 47 KB of static RAM.
 
-Another reader inkerface supports is another `[env:...]` in
-`platformio.ini` with that reader's board and FreeInk flags, mirroring
-inkerface's own `platformio.ini`. Disciple's code does not change.
+Another reader inkerface supports is another `[env:...]` with that
+reader's board and FreeInk flags, mirroring inkerface's own
+`platformio.ini`, and a `custom_description` for `make help`. Disciple's
+code does not change, and the new platform is in `make help` at once.
 
 ## Run
 
-On a reader it runs with no arguments and needs none. On a desktop:
+On a reader it runs with no arguments and needs none. On a desktop,
+`make run` at the repository root starts it in the preview window with
+its settings kept, beside Apostle and Evangelist. By hand, from the
+repository root:
 
 ```sh
-make run                                         # preview window, settings kept
 INKERFACE_PREVIEW=1 bin/disciple --host apostle.lan
 INKERFACE_FRAME_PATH=frame.pbm bin/disciple      # headless, each frame to a file
 ```
@@ -238,8 +231,8 @@ to answer for.
 
 ```
 disciple/
-├── Makefile             the desktop program and the tests
-├── platformio.ini       the X4 firmware
+├── Makefile             the emulator, the firmware, and the tests
+├── platformio.ini       the reader platforms, one [env:...] each
 ├── include/disciple/
 │   ├── version.h        version, protocol revision, port, grey levels
 │   ├── client.h         the entry logic: platform objects and main loop
@@ -256,7 +249,7 @@ disciple/
 │   └── wire.h           the Apostle protocol, shared with apostle/
 ├── src/                 one file per header, and
 │   └── main.cpp         inkerface's program(), nothing else
-└── tests/               run with `make test`, on inkerface's desktop backend
+└── tests/               run in CI, on inkerface's desktop backend
     ├── test_wire.cpp    the envelope, byte for byte
     ├── test_setup.cpp   forms, DNS answers, settings, names, the setup page
     ├── test_screens.cpp screens and pages, pixel for pixel
@@ -266,9 +259,7 @@ disciple/
 ```
 
 No `build/` or `bin/` here. Both live at the repository root and are
-shared with Evangelist and Apostle. `make distclean` removes
-`../build/disciple/`, `../bin/disciple`, and `../bin/disciple-x4.bin`,
-and leaves the other parts' output alone.
+shared with Evangelist and Apostle.
 
 Coding rules for this project are in
 `docs/standards/CPP-CODING-STYLE.md`.

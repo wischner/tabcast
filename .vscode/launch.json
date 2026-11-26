@@ -1,15 +1,15 @@
 {
     // F5 debugging for Tabcast.
     //
-    // Select the compound "Tabcast: daemon + client" for F5.
-    // It builds all three parts, then starts Apostle
-    // and Disciple together under gdb, so the extension has somewhere
-    // to broadcast to and you can watch both ends.
+    // Select the compound "Tabcast: daemon + client" for F5. It builds
+    // all three parts first, in the Docker build image, then Apostle and Disciple start together under gdb here, so
+    // the extension has somewhere to broadcast to and you can watch both
+    // ends. The image mounts the repository at its own path, so the
+    // debug information points at these sources.
     //
     // Needs the C/C++ extension (ms-vscode.cpptools). F5 builds have
-    // debug symbols and undefined behaviour checks. The tasks select
-    // UBSan because this host's AppProtection preload conflicts with
-    // ASan. Normal make builds still enable both sanitizers.
+    // debug symbols and undefined behaviour checks, not ASan, which this
+    // host's AppProtection preload conflicts with.
     "version": "0.2.0",
     "configurations": [
         {
@@ -24,7 +24,6 @@
             "stopAtEntry": false,
             "externalConsole": false,
             "MIMode": "gdb",
-            "preLaunchTask": "build apostle",
             "environment": [
                 {
                     // LeakSanitizer cannot run under gdb's ptrace.
@@ -62,7 +61,6 @@
             "stopAtEntry": false,
             "externalConsole": false,
             "MIMode": "gdb",
-            "preLaunchTask": "build disciple",
             "environment": [
                 { "name": "INKERFACE_PREVIEW", "value": "1" },
                 {
@@ -89,6 +87,9 @@
             // Select this target in Run and Debug for end-to-end use.
             "name": "Tabcast: daemon + client",
             "configurations": ["Debug apostle", "Debug disciple"],
+            // Built once, here, rather than by each configuration, so
+            // two builds never write the same files at once. Run the
+            // "build all" task before starting either one on its own.
             "preLaunchTask": "build all",
             "stopAll": true,
             "presentation": { "group": "tabcast", "order": 1 }

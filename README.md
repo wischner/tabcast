@@ -13,7 +13,7 @@ Three parts, named for how the message travels.
 | --- | --- | --- | --- |
 | Browser extension | **Evangelist** | Sees the page and begins the proclamation. Adds a control bar to every page and captures the tab every N seconds. | JavaScript, MV3 |
 | Broadcast daemon | **Apostle** | Is sent to carry the message to the whole community. Receives frames and distributes them to every registered reader. | Modern C++ |
-| E-ink client | **Disciple** | Receives and displays the Word so the faithful can see. Multiple Disciples form the flock. | Modern C++, on [inkerface](../inkerface) |
+| E-ink client | **Disciple** | Receives and displays the Word so the faithful can see. Multiple Disciples form the flock. | Modern C++, on [inkerface](https://github.com/wischner/inkerface) |
 
 ```
    Firefox / Chrome tab
@@ -46,132 +46,141 @@ The wire protocol for both hops is specified in full in
 [docs/PROTOCOL.md](docs/PROTOCOL.md), so neither daemon has to invent
 it while being written.
 
-## Build
+## Build, run, deploy
 
-Everything, from the repository root:
-
-```sh
-make                 # build all three parts into build/ and bin/
-make check           # syntax check the extension, run the C++ tests
-make BUILD=release   # release build of the C++ parts
-make dist            # build all distributable outputs (same as make)
-make clean           # artifacts for the current build type
-make distclean       # everything, leaving no build/ or bin/ behind
-make help
-```
-
-Or one part at a time:
+Everything is the top-level `Makefile`, and it has six commands:
 
 ```sh
-make evangelist
-make apostle
-make disciple
+make                      # build Evangelist, Apostle, and Disciple into bin/
+make run                  # build, then run all three on this machine
+make deploy PLATFORM=x4   # build Disciple for a reader and flash it over USB
+make clean                # delete everything builds made; keep deps/
+make purge                # clean, and delete deps/ and the build image
+make help                 # the commands, and every platform
 ```
 
-Each part is a self-contained project with its own `Makefile` and its
-own `README.md`. The top level only orchestrates.
+`PLATFORM` says which Disciple to build, run, or deploy. `emulator`, the
+default, is the reader in a window on this machine. Every other platform
+is a reader, one `[env:...]` in
+[disciple/platformio.ini](disciple/platformio.ini); `make help` lists
+them. Today that is `x4`, the Xteink X4. `make PLATFORM=x4` builds its
+firmware without flashing it.
 
-## Dependencies
+### What a machine needs
 
-Ubuntu or Debian:
+Make, git, curl, and Docker. Nothing else is installed on the machine.
+Every build runs in a Docker image, described by
+[docker/Dockerfile](docker/Dockerfile), with the compilers, CMake,
+PlatformIO, and the headers in it. `make` builds that image the first
+time, then runs the build in it with this repository mounted at its own
+path and as you, so what it writes is yours and lands where it would
+without Docker. Editing the Dockerfile makes the next `make` build a
+new image. `make DOCKER=no` builds with this machine's own tools
+instead, if they are all there.
+
+Third-party libraries are downloaded the first time a build needs them,
+into `deps/`, and kept:
+
+| Library | For | Pinned in the `Makefile` |
+| --- | --- | --- |
+| [inkerface](https://github.com/wischner/inkerface) | Disciple's platform. It brings the FreeInk SDK, which it downloads into itself. | `INKERFACE_REV` |
+| [stb_image](https://github.com/nothings/stb) | Apostle's PNG and JPEG decoder, checked against its SHA-256. | `STB_REV`, `STB_SHA256` |
+| PlatformIO toolchains | Reader firmware. | by `disciple/platformio.ini` |
+
+A library already in `deps/` is left alone. When a pin moves, a
+downloaded inkerface follows it, unless it has local changes. Downloads
+use this machine's git, so the inkerface repository needs only to be
+readable by you. To build against an inkerface checkout of your own,
+`make INKERFACE_DIR=../inkerface`; that one is never downloaded, moved,
+or cleaned.
+
+### Running it
+
+`make run` builds, then starts:
+
+| | |
+| --- | --- |
+| Apostle | in the foreground, logging to the terminal. If one is already running, that one is used. |
+| Evangelist | in a Firefox of its own, with a throwaway profile in `build/firefox/`, loaded as a temporary add-on, so your own Firefox is not touched. Without Firefox, it says where to load the extension from by hand. |
+| Disciple | inkerface's preview window, showing the X4's panel pixel for pixel; any key is a button and P is the power button. The first run goes through Wi-Fi setup, at the address the window shows; the emulated flash in `build/disciple/storage/` remembers the result. |
+
+Press **Broadcast** on any page in that Firefox and the page appears in
+the reader's window. Closing the reader, or switching it off with P,
+stops everything; so does Ctrl+C.
+
+`make run PLATFORM=x4` runs Apostle and Evangelist the same way, and the
+reader is the X4 itself, deployed beforehand: switch it on and it finds
+this Apostle.
+
+### Deploying to a reader
+
+Connect the reader by USB and switch it on, then:
 
 ```sh
-sudo apt install build-essential make python3 cmake git patch \
-    libx11-dev libssl-dev
-git clone https://github.com/wischner/inkerface.git ../inkerface
+make deploy PLATFORM=x4
 ```
 
-- **Evangelist** needs `python3` and nothing else. No npm, no bundler,
-  no network access at build time.
-- **Apostle** needs `g++` with C++20 support and GNU Make, nothing else.
-- **Disciple** is an [inkerface](https://github.com/wischner/inkerface)
-  program, so it needs inkerface checked out beside this repository, as
-  `../inkerface`, and what inkerface needs: CMake, X11 and OpenSSL
-  headers, and git for its first download of the FreeInk SDK, which its
-  own build does. The X4 firmware also needs PlatformIO. See
-  `disciple/README.md`.
+That builds the firmware and flashes it to the first reader on USB.
+`PORT=/dev/ttyACM1` names another. The reader keeps its Wi-Fi settings
+and its name across a deploy.
 
-Firefox or Chrome, to run the extension.
+### Output
+
+There is one `build/` and one `bin/`, both here at the root. No part
+writes anything beside its own sources, so `git status` on a fully built
+tree is clean, and `make clean` leaves only what git tracks, plus
+`deps/`.
+
+| | |
+| --- | --- |
+| `bin/apostle` | The daemon. |
+| `bin/disciple` | The reader, emulated on this machine. |
+| `bin/disciple-<platform>.bin` | The reader's firmware, such as `bin/disciple-x4.bin`. |
+| `bin/evangelist-<version>-firefox.xpi`, `-chrome.zip` | The extension, packaged. |
+| `build/<part>/` | Everything intermediate. `build/evangelist/<browser>/` is the unpacked extension, to load by hand with "load unpacked". |
+| `deps/` | Downloaded libraries and toolchains. Not checked in. |
+
+Builds are release builds, which is what `bin/` is for. `BUILD=debug`
+adds symbols and sanitizers, which is what F5 uses.
 
 ## Debugging with F5
 
 In VS Code's **Run and Debug** dropdown, select **Tabcast: daemon +
-client**, then press **F5**. VS Code remembers the selected target;
-F5 on a standalone Disciple target does not start Apostle.
+client**, then press **F5**. It runs `make BUILD=debug
+SANITIZERS=undefined`, in the build image like every build, then
+launches Apostle and Disciple under gdb on this machine, with `stopAll`
+so closing one stops the other. They can start in either order: the
+reader keeps looking for Apostle until one answers. The image mounts the
+repository at its own path, so the debug information points at these
+sources.
 
-The compound builds all three parts, then launches Apostle and Disciple
-under gdb, with `stopAll` so closing one stops the other. They can start
-in either order: the reader keeps looking for Apostle until one answers.
+The sanitizers are UBSan only: the development machine preloads
+`AppProtection.so` through `/etc/ld.so.preload`, which conflicts with
+AddressSanitizer before the programs reach `main()`. Needs the C/C++
+extension (`ms-vscode.cpptools`) and `gdb`. For program errors, read
+the integrated **Terminal**; the Debug Console's "exited with code 1" is
+only the exit summary.
 
-| | |
-| --- | --- |
-| Apostle | `--foreground --log-level debug`, with logs in the integrated terminal. |
-| Disciple | inkerface's preview window, showing the X4's panel pixel for pixel; any key is a button. The first run goes through Wi-Fi setup, at the address the window shows; its emulated flash in `build/disciple/storage` remembers the result. |
+## How it works
 
-Both are debug builds with symbols and undefined behaviour checks.
-The VS Code tasks explicitly use `SANITIZERS=undefined`: the development
-machine preloads `AppProtection.so` through `/etc/ld.so.preload`, which
-conflicts with AddressSanitizer before the programs reach `main()`.
-Needs the C/C++ extension (`ms-vscode.cpptools`) and `gdb`.
+Press Broadcast in the browser and the page appears on the reader,
+fitted to its portrait panel and reduced to one bit a pixel. Evangelist
+captures the tab and posts it to Apostle over loopback, on
+`127.0.0.1:8420`. Apostle reduces it for each reader's panel
+(`image/gray-packed`), so a reader needs no image decoder, and fans it
+out over TCP on port `8421`. Disciple draws it and acknowledges. A "No
+answer from Apostle" message in the browser means the daemon is not
+listening at the address configured in the extension.
 
-Normal `make` builds still use `SANITIZERS=address,undefined`. On a
-host with the preload conflict, build and test from a terminal with:
-
-```sh
-make BUILD=debug SANITIZERS=undefined
-make check SANITIZERS=undefined
-```
-
-Sanitizer variants have separate build directories, so switching does
-not reuse incompatible objects. On a host compatible with ASan, change
-the VS Code tasks to `SANITIZERS=address,undefined` for address checks
-too. The launch configurations disable leak detection because it cannot
-run under gdb's ptrace. For program errors, read the integrated
-**Terminal**; the Debug Console's "exited with code 1" is only the exit
-summary.
-
-The build task also rebuilds the extension into `build/evangelist/`, so
-after F5 you can reload it in the browser and it will be current. See
-[evangelist/README.md](evangelist/README.md#install) for the reload
-step, which Firefox does not do on its own.
-
-**End to end works.** Press Broadcast in the browser and the page
-appears on the reader, fitted to its portrait panel and reduced to one
-bit a pixel. The path is Evangelist captures the tab, posts it to
-Apostle over loopback, Apostle reduces it for each reader's panel and
-fans it out over TCP, Disciple draws it and acknowledges.
-
-The reader runs on a real Xteink X4: `make x4-upload` in `disciple/`
-builds it on inkerface and flashes it, and the same code runs in
-inkerface's desktop emulation of the X4. Apostle reduces every page to
-each reader's own panel (`image/gray-packed`), so a reader needs no image
-decoder. Pages are one bit deep for now; four grey levels need inkerface
-to expose the X4's grayscale mode.
-
-## Getting started
-
-```sh
-make
-```
-
-Then load the extension. Firefox needs one extra step that catches
-everyone, so read
-[evangelist/README.md](evangelist/README.md#install) rather than
-guessing.
-
-Start **Tabcast: daemon + client** with F5, wait for the Disciple
-window, set its Wi-Fi up once if it asks (any phone or browser on this
-network can open the address it shows), then press **Broadcast** on a
-normal web page in Firefox.
-The extension uploads to `127.0.0.1:8420`; Disciple receives frames on
-port `8421`. A "No answer from Apostle" message means the daemon is
-not listening at the address configured in the extension.
+Pages are one bit deep for now; four grey levels need inkerface to
+expose the X4's grayscale mode.
 
 ## Repository layout
 
 ```
 tabcast/
-├── Makefile              orchestrates the three parts
+├── Makefile              the only one you need
+├── docker/Dockerfile     the build image
 ├── docs/
 │   ├── ARCHITECTURE.md   how the parts fit together, and why
 │   ├── PROTOCOL.md       both wire formats, in full
@@ -180,30 +189,16 @@ tabcast/
 │       └── EXT-CODING-STYLE.md
 ├── evangelist/           browser extension
 ├── apostle/              broadcast daemon
-├── disciple/             e-ink client
-├── scripts/              developer automation
-├── build/                every artifact, from every part
-└── bin/                  every finished program
+├── disciple/             e-ink reader
+├── packaging/            the Debian package
+├── scripts/              what make runs: downloads, make run, Firefox
+├── build/                every artifact, from every part   (not checked in)
+├── bin/                  every finished program            (not checked in)
+└── deps/                 downloaded libraries              (not checked in)
 ```
 
-There is exactly one `build/` and one `bin/`, both here at the root.
-No part writes anything beside its own sources, so `git status` on a
-fully built tree is clean.
-
-| | |
-| --- | --- |
-| `build/apostle/<type>/` | Objects, deps, intermediate links. `<type>` is `debug` or `release`. |
-| `build/disciple/<type>/<backend>/` | Client objects and intermediate links, separated by display backend. |
-| `build/evangelist/<browser>/` | Unpacked extension. This is what you load with "load unpacked". |
-| `bin/apostle`, `bin/disciple` | The finished programs. |
-| `bin/evangelist-<version>-firefox.xpi`, `bin/evangelist-<version>-chrome.zip` | Packaged extensions, written by `make` or `make dist`. |
-
-Debug artifacts have an additional sanitizer subdirectory, such as
-`build/apostle/debug/undefined/` and
-`build/disciple/debug/test/address,undefined/`.
-
-Building from inside a part works the same way. `cd apostle && make`
-puts its output in the root `build/` and `bin/`, not in `apostle/`.
+Each part has its own `Makefile`, which the top-level one runs; use the
+top-level one.
 
 ## Standards
 

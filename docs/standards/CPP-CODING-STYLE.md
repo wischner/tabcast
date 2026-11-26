@@ -17,9 +17,14 @@ the tree.
 
 - `src/` contains application `.cpp` files.
 - `include/` contains all public `.h` files.
-- `lib/` contains project libraries and third-party libraries.
+- `lib/` contains project libraries.
 - `lib/<name>/` contains the implementation of a library such as
   `lib/dbf/`.
+- Third-party libraries are never checked in. The top-level `Makefile`
+  downloads each one into the root `deps/` the first time a build needs
+  it, pinned to an exact revision and, for a single file, checked
+  against its SHA-256. `deps/` is ignored by git, kept by `make clean`,
+  and removed by `make purge`.
 - `bin/` contains final programs and other final generated outputs.
 - `build/` contains all build artifacts, including object files,
   dependency files, static libraries, maps, listings, and temporary
@@ -47,8 +52,8 @@ Rules:
   `build/` directory.
 - No project-level `build/` or `bin/` directories are allowed. A
   `build/` appearing beside a project's sources is a bug.
-- Nothing generated may be written beside the sources. A clean
-  checkout plus `make distclean` must leave no untracked files.
+- Nothing generated may be written beside the sources. A built tree
+  plus `make clean` must leave nothing untracked but `deps/`.
 - Nothing else should be created at the project root except normal
   project files such as `LICENSE`, `README.md`, `Makefile`, and
   similar top-level metadata.
@@ -162,6 +167,11 @@ Rules:
   or any other subdirectory.
 - Use GNU Make directly. No cmake, no meson, no generated build
   system. One handwritten `Makefile` per project, at the project root.
+  A third-party library is built the way it builds itself, CMake
+  included.
+- Builds run in the Docker build image, `docker/Dockerfile`. A tool a
+  build needs goes into that image, never onto the developer's
+  machine, which needs only make, git, curl, and Docker.
 - The `Makefile` must discover sources under `src/` and `lib/` rather
   than listing them, so adding a file to the tree is enough to get it
   built.
@@ -170,15 +180,21 @@ Rules:
   `bin/`.
 - Every project supports exactly two build types, selected with
   `BUILD=`:
-  - `debug`, the default: `-g -Og` with sanitizers.
-  - `release`: `-O2 -DNDEBUG` with the C++ runtime linked in.
+  - `debug`: `-g -Og` with sanitizers. A project's own default, for
+    its tests.
+  - `release`: `-O2 -DNDEBUG` with the C++ runtime linked in. The
+    top-level default, because `bin/` is what gets installed.
 - Generate header dependencies with `-MMD -MP` and `-include` the
   resulting `.d` files, so editing a header rebuilds what uses it.
-- Every project `Makefile` provides `all`, `test`, `clean`,
-  `distclean`, and `help`.
-- `distclean` removes what that project produced and nothing else.
-  Because `bin/` is shared, delete the program by name rather than
-  emptying the directory.
+- The top-level `Makefile` is the only interface, and it has exactly
+  these commands: `make`, `make run`, `make deploy`, `make clean`,
+  `make purge`, and `make help`. `PLATFORM=` chooses which platform a
+  program that has several is built, run, or deployed for, and
+  `make help` lists every platform.
+- Every project `Makefile` provides `all`, `test`, and `clean`, for the
+  top-level `Makefile` and CI. Its `clean` removes what that project
+  produced and nothing else. Because `bin/` is shared, delete the
+  program by name rather than emptying the directory.
 - In a multi-project repository, the top-level `Makefile` only
   orchestrates. It delegates to each project and defines no compile
   rules of its own.

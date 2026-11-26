@@ -1,0 +1,148 @@
+docker     building the build image tabcast-build:e92318b7a51f, once
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.99kB done
+#1 DONE 0.0s
+
+#2 [auth] library/ubuntu:pull token for registry-1.docker.io
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/ubuntu:24.04
+#3 DONE 0.6s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [1/3] FROM docker.io/library/ubuntu:24.04@sha256:562111b88caa79c71391c0c4d3c2114a7d5c35915c20561fd893cb1e07929e6b
+#5 resolve docker.io/library/ubuntu:24.04@sha256:562111b88caa79c71391c0c4d3c2114a7d5c35915c20561fd893cb1e07929e6b 0.0s done
+#5 DONE 0.0s
+
+#6 [2/3] RUN apt-get update     && apt-get install --yes --no-install-recommends         build-essential         ca-certificates         cmake         curl         dpkg-dev         git         libssl-dev         libx11-dev         make         nodejs         patch         python3         python3-venv     && rm -rf /var/lib/apt/lists/*
+#6 CACHED
+
+#7 [3/3] RUN python3 -m venv /opt/platformio     && /opt/platformio/bin/pip install --no-cache-dir platformio==6.1.19
+#7 CACHED
+
+#8 exporting to image
+#8 exporting layers done
+#8 exporting manifest sha256:4cd50921958e4e7d15dd36c4a99cf98b1e527a6453101205dcc7f4fdb53c5438 done
+#8 exporting config sha256:bcc7135655e5ad92860f5c13dc519106c250e2d69f8075f5734d5f6ab8b448df done
+#8 exporting attestation manifest sha256:fc83d71181a01af9b7d041bab92ab7ae0d69af47d090c8049fa45838d403377a 0.0s done
+#8 exporting manifest list sha256:cbc3cb935085f1a3eb9ced56ee06c34be26c5f761bf75e0e155c2303efd3fcdb 0.0s done
+#8 naming to docker.io/library/tabcast-build:e92318b7a51f done
+#8 unpacking to docker.io/library/tabcast-build:e92318b7a51f
+#8 unpacking to docker.io/library/tabcast-build:e92318b7a51f 3.1s done
+#8 DONE 3.2s
+deps       downloading inkerface 1321cc6751cf from https://github.com/wischner/inkerface.git
+deps       downloading stb_image.h from https://raw.githubusercontent.com/nothings/stb/f58f558c120e9b32c217290b80bad1a0729fbb2c/stb_image.h
+built ../build/evangelist/firefox and ../build/evangelist/chrome
+packaged ../bin/evangelist-0.1.0-firefox.xpi and ../bin/evangelist-0.1.0-chrome.zip
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/stb -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/apostle/release/src/broadcast_server.o src/broadcast_server.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/stb -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/apostle/release/src/stb_image.o src/stb_image.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/stb -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/apostle/release/src/wire.o src/wire.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/stb -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/apostle/release/src/log.o src/log.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/stb -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/apostle/release/src/runtime.o src/runtime.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/stb -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/apostle/release/src/options.o src/options.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/stb -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/apostle/release/src/frame_store.o src/frame_store.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/stb -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/apostle/release/src/http_server.o src/http_server.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/stb -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/apostle/release/src/reduce.o src/reduce.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/stb -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/apostle/release/src/discovery.o src/discovery.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/stb -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/apostle/release/src/main.o src/main.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/stb -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/apostle/release/src/http.o src/http.cpp
+g++ -static-libgcc -static-libstdc++ -o ../build/apostle/release/apostle ../build/apostle/release/src/broadcast_server.o ../build/apostle/release/src/stb_image.o ../build/apostle/release/src/wire.o ../build/apostle/release/src/log.o ../build/apostle/release/src/runtime.o ../build/apostle/release/src/options.o ../build/apostle/release/src/frame_store.o ../build/apostle/release/src/http_server.o ../build/apostle/release/src/reduce.o ../build/apostle/release/src/discovery.o ../build/apostle/release/src/main.o ../build/apostle/release/src/http.o 
+built ../bin/apostle (release)
+python3 tools/download_sdk.py "/home/tomaz/repos/wischner/tabcast/deps/inkerface/lib/freeink-sdk"
+python3 tools/download_filesystems.py
+From https://github.com/Free-Ink/freeink-sdk
+ * branch            e637713a533ea7583ba73fa2052967c21cf0335d -> FETCH_HEAD
+Cached FreeInk SDK e637713a533ea7583ba73fa2052967c21cf0335d in /home/tomaz/repos/wischner/tabcast/deps/inkerface/lib/freeink-sdk
+patching file ff.c
+patching file ff.c
+Cached littlefs 2.11.3 and FatFs R0.16 + patches 1/2 in /home/tomaz/repos/wischner/tabcast/deps/inkerface/lib/host-filesystems
+gmake[2]: warning: jobserver unavailable: using -j1.  Add '+' to parent make rule.
+[  3%] Building C object CMakeFiles/host_filesystems.dir/lib/host-filesystems/littlefs/lfs.c.o
+[  7%] Building C object CMakeFiles/host_filesystems.dir/lib/host-filesystems/littlefs/lfs_util.c.o
+[ 11%] Building C object CMakeFiles/host_filesystems.dir/lib/host-filesystems/fatfs/ff.c.o
+[ 14%] Building C object CMakeFiles/host_filesystems.dir/lib/host-filesystems/fatfs/ffunicode.c.o
+[ 18%] Linking C static library libhost_filesystems.a
+[ 18%] Built target host_filesystems
+[ 22%] Building CXX object CMakeFiles/freeink_ui.dir/lib/freeink-sdk/libs/ui/FreeInkUI/src/FreeInkUI.cpp.o
+[ 25%] Linking CXX static library libfreeink_ui.a
+[ 25%] Built target freeink_ui
+[ 29%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/freeink/canvas.cpp.o
+[ 33%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/freeink/surface.cpp.o
+[ 37%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/freeink/fonts.cpp.o
+[ 40%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/freeink/font_file.cpp.o
+[ 44%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/host/display.cpp.o
+[ 48%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/host/input.cpp.o
+[ 51%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/common/storage.cpp.o
+[ 55%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/host/storage.cpp.o
+[ 59%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/host/disk_image.cpp.o
+[ 62%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/host/image_volume.cpp.o
+[ 66%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/net/socket.cpp.o
+[ 70%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/net/listener.cpp.o
+[ 74%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/net/udp.cpp.o
+[ 77%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/net/descriptor.cpp.o
+[ 81%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/net/http.cpp.o
+[ 85%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/host/network.cpp.o
+[ 88%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/host/arduino/arduino_shim.cpp.o
+[ 92%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/host/secure_client.cpp.o
+[ 96%] Building CXX object CMakeFiles/inkerface_platform.dir/lib/inkerface/src/host/preview.cpp.o
+[100%] Linking CXX static library libinkerface_platform.a
+[100%] Built target inkerface_platform
+[100%] Built target freeink_ui
+[100%] Built target host_filesystems
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/inkerface/include -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/disciple/release/src/captive_dns.o src/captive_dns.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/inkerface/include -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/disciple/release/src/reader.o src/reader.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/inkerface/include -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/disciple/release/src/link.o src/link.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/inkerface/include -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/disciple/release/src/timer.o src/timer.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/inkerface/include -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/disciple/release/src/wifi_setup.o src/wifi_setup.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/inkerface/include -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/disciple/release/src/wire.o src/wire.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/inkerface/include -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/disciple/release/src/client.o src/client.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/inkerface/include -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/disciple/release/src/portal.o src/portal.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/inkerface/include -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/disciple/release/src/options.o src/options.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/inkerface/include -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/disciple/release/src/screens.o src/screens.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/inkerface/include -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/disciple/release/src/settings.o src/settings.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/inkerface/include -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/disciple/release/src/discovery.o src/discovery.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/inkerface/include -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/disciple/release/src/main.o src/main.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/inkerface/include -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/disciple/release/inkerface/entry.o /home/tomaz/repos/wischner/tabcast/deps/inkerface/lib/inkerface/src/host/entry.cpp
+g++ -Iinclude -isystem /home/tomaz/repos/wischner/tabcast/deps/inkerface/include -MMD -MP -std=c++20 -Wall -Wextra -pedantic -O2 -DNDEBUG -c -o ../build/disciple/release/src/setup_page.o src/setup_page.cpp
+g++ -static-libgcc -static-libstdc++ -o ../build/disciple/release/disciple ../build/disciple/release/src/captive_dns.o ../build/disciple/release/src/reader.o ../build/disciple/release/src/link.o ../build/disciple/release/src/timer.o ../build/disciple/release/src/wifi_setup.o ../build/disciple/release/src/wire.o ../build/disciple/release/src/client.o ../build/disciple/release/src/portal.o ../build/disciple/release/src/options.o ../build/disciple/release/src/screens.o ../build/disciple/release/src/setup_page.o ../build/disciple/release/src/settings.o ../build/disciple/release/src/discovery.o ../build/disciple/release/src/main.o ../build/disciple/release/inkerface/entry.o /home/tomaz/repos/wischner/tabcast/deps/inkerface/build/release/libinkerface_platform.a /home/tomaz/repos/wischner/tabcast/deps/inkerface/build/release/libfreeink_ui.a /home/tomaz/repos/wischner/tabcast/deps/inkerface/build/release/libhost_filesystems.a -lssl -lcrypto -lX11
+built ../bin/disciple (release, the emulator)
+
+real	0m41.545s
+user	0m0.587s
+sys	0m0.350s
+make exit=0
+built ../build/evangelist/firefox and ../build/evangelist/chrome
+packaged ../bin/evangelist-0.1.0-firefox.xpi and ../bin/evangelist-0.1.0-chrome.zip
+built ../bin/apostle (release)
+python3 tools/download_sdk.py "/home/tomaz/repos/wischner/tabcast/deps/inkerface/lib/freeink-sdk"
+pio run --environment x4
+********************************************************************************
+If you like PlatformIO, please:
+- star it on GitHub > https://github.com/platformio/platformio-core
+- follow us on LinkedIn to stay up-to-date on the latest project news > https://www.linkedin.com/company/platformio/
+- try PlatformIO IDE for embedded development > https://platformio.org/platformio-ide
+********************************************************************************
+
+Processing x4 (platform: https://github.com/pioarduino/platform-espressif32/releases/download/55.03.37/platform-espressif32.zip; framework: arduino; board: esp32-c3-devkitm-1)
+--------------------------------------------------------------------------------
+Platform Manager: Installing https://github.com/pioarduino/platform-espressif32/releases/download/55.03.37/platform-espressif32.zip
+Downloading 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Unpacking 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Platform Manager: espressif32@55.3.37 has been installed!
+Tool Manager: Installing https://github.com/pioarduino/esp_install/releases/download/v5.3.4/esp_install-v5.3.4.zip
+Downloading 0% 10% 20% 30% 40% 50% 60% 70%
+Unpacking 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Tool Manager: tool-esp_install@5.3.4 has been installed!
+Created pioarduino Python virtual environment: /home/tomaz/repos/wischner/tabcast/deps/platformio/penv
+Tool Manager: Installing https://github.com/espressif/arduino-esp32/releases/download/3.3.7/esp32-core-3.3.7.tar.xz
+Downloading 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Unpacking 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Tool Manager: framework-arduinoespressif32@3.3.7 has been installed!
+Tool Manager: Installing https://github.com/espressif/arduino-esp32/releases/download/3.3.7/esp32-core-3.3.7-libs.tar.xz
+Downloading 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Unpacking 0% 10% 20% 30% 40% 50% 60% 70%

@@ -17,13 +17,19 @@ jobs:
       - name: Check out tag
         uses: actions/checkout@v6
 
-      # Disciple is an inkerface program. inkerface is checked out
-      # beside the sources, and its own build fetches the FreeInk SDK.
+      # inkerface is private, so the Makefile cannot download it here. It
+      # is checked out where the Makefile would put it, at the revision
+      # the Makefile pins, and the Makefile then leaves it alone.
+      - name: Read the inkerface pin
+        id: inkerface
+        run: echo "revision=$(sed -n 's/^INKERFACE_REV := //p' Makefile)" >>"$GITHUB_OUTPUT"
+
       - name: Check out inkerface
         uses: actions/checkout@v6
         with:
           repository: wischner/inkerface
-          path: inkerface
+          ref: ${{ steps.inkerface.outputs.revision }}
+          path: deps/inkerface
 
       - name: Derive Debian version from tag
         id: version
@@ -41,34 +47,27 @@ jobs:
           dpkg --validate-version "$version"
           echo "value=$version" >>"$GITHUB_OUTPUT"
 
-      - name: Check and build on Ubuntu 24.04
+      # The same build as on a desktop: make builds the image from
+      # docker/Dockerfile and builds everything in it. The tests and the
+      # package then run in that image too.
+      - name: Build, test, and package on Ubuntu 24.04
         id: package
         env:
           PACKAGE_VERSION: ${{ steps.version.outputs.value }}
         run: |
+          make
+          image="tabcast-build:$(sha256sum docker/Dockerfile | cut -c1-12)"
           docker run --rm \
-            --volume "$PWD:/work" \
-            --workdir /work \
+            --user "$(id -u):$(id -g)" \
+            --volume "$PWD:$PWD" \
+            --workdir "$PWD" \
             --env PACKAGE_VERSION \
-            --env INKERFACE_DIR=/work/inkerface \
-            ubuntu:24.04 \
+            "$image" \
             bash -euo pipefail -c '
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update
-              apt-get install --yes --no-install-recommends \
-                build-essential \
-                ca-certificates \
-                cmake \
-                dpkg-dev \
-                git \
-                libssl-dev \
-                libx11-dev \
-                make \
-                nodejs \
-                patch \
-                python3
-              make check SANITIZERS=undefined
-              make deb PACKAGE_VERSION="$PACKAGE_VERSION"
+              make -C evangelist check
+              make -C apostle test SANITIZERS=undefined
+              make -C disciple test SANITIZERS=undefined
+              packaging/build-deb.sh "$PACKAGE_VERSION"
             '
           package_path="dist/tabcast_${PACKAGE_VERSION}_$(dpkg --print-architecture).deb"
           test -f "$package_path"

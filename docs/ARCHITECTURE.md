@@ -26,8 +26,8 @@ distributes it to every registered Disciple.
 receives frames, and renders them on the e-ink panel. Multiple
 Disciples form the flock.
 
-Disciple is an inkerface program and nothing else. inkerface (the
-sibling repository `../inkerface`) is the e-ink platform, directly on
+Disciple is an inkerface program and nothing else. inkerface
+(downloaded into `deps/inkerface/` by the build) is the e-ink platform, directly on
 the FreeInk SDK: it drives the panel, buttons, Wi-Fi, and storage on
 every reader it supports, and emulates the X4 on a desktop with the
 same FreeInk renderer. Disciple uses inkerface's types directly, with no
@@ -111,7 +111,8 @@ page on the panel while it does.
 
 ```
 tabcast/
-├── Makefile              top level orchestration
+├── Makefile              the only interface: make, run, deploy, clean, purge, help
+├── docker/Dockerfile     the build image every build runs in
 ├── docs/
 │   ├── ARCHITECTURE.md   this file
 │   ├── PROTOCOL.md       wire formats
@@ -119,9 +120,11 @@ tabcast/
 ├── evangelist/           browser extension
 ├── apostle/              broadcast daemon
 ├── disciple/             e-ink client
-├── scripts/              developer automation
-├── build/                every artifact, from every part
-└── bin/                  every finished program
+├── packaging/            the Debian package
+├── scripts/              downloads, make run, and Firefox for it
+├── build/                every artifact, from every part   (not checked in)
+├── bin/                  every finished program            (not checked in)
+└── deps/                 downloaded third-party libraries  (not checked in)
 ```
 
 Each of the three parts is a self-contained project with its own
@@ -133,11 +136,14 @@ and a single `bin/` at the root, and each part writes into its own
 subdirectory of `build/` while dropping finished programs straight
 into `bin/`. Nothing is generated beside a part's sources, which is
 what keeps `git status` clean on a fully built tree and makes
-`make distclean` a complete undo.
+`make clean` a complete undo of a build.
 
-Because `bin/` is shared, each part's `distclean` deletes its own
-program by name rather than emptying the directory. Cleaning Apostle
-must not remove Disciple.
+Third-party code is not checked in. inkerface, stb_image, and
+PlatformIO's toolchains are downloaded into `deps/` the first time a
+build needs them, each pinned in the top-level `Makefile`, and kept
+there until `make purge`. Every build runs in the Docker image
+`docker/Dockerfile` describes, so the tools are pinned too, and a
+developer's machine needs only make, git, curl, and Docker.
 
 ## Status
 

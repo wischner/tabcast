@@ -1,59 +1,49 @@
 #
-# Disciple build.
+# Disciple build. Run by the top-level Makefile; use that one.
 #
-# Disciple is the Tabcast e-ink reader: it gets onto Wi-Fi, finds the
-# Apostle daemon, and shows the pages it broadcasts. It is an inkerface
-# program. inkerface (the sibling repository ../../inkerface) is the
-# e-ink platform over the FreeInk SDK: it runs the same program on the
-# Xteink X4, on every other reader it supports, and on a desktop, where
-# it emulates the X4 pixel for pixel.
+# Disciple is the Tabcast e-ink reader, an inkerface program. inkerface
+# runs the same program on a reader and, as `emulator`, in a window on a
+# desktop, where it emulates the Xteink X4 pixel for pixel.
 #
-# This Makefile builds the desktop program and the tests. The reader
-# firmware is built by PlatformIO from platformio.ini; `make x4` runs it.
+#   PLATFORM=emulator   the desktop program, into <root>/bin/disciple
+#   PLATFORM=<reader>   that reader's firmware, built by PlatformIO from
+#                       its [env:<reader>] in platformio.ini, into
+#                       <root>/bin/disciple-<reader>.bin
 #
-# Artifacts do not stay here. This is one project in a multi-project
-# repository, and the repository has exactly one build/ and one bin/,
-# both at its root. Objects land in build/disciple/<build type>/ and the
-# finished program in bin/disciple. Building from inside this directory
-# works the same way, because the paths are relative to ROOT_DIR.
+# Targets: all (the default), upload (flash a reader on PORT), test (the
+# tests, on the emulator), clean.
 #
-# Two build types. `debug`, the default, carries full warnings and the
-# address and undefined behaviour sanitizers. `release` links the C++
-# runtime into the program.
-#
-#   make                 debug build into <root>/bin/disciple
-#   make BUILD=release   release build into <root>/bin/disciple
-#   make run             run it in inkerface's preview window
-#   make test            build and run the tests
-#   make x4              Xteink X4 firmware into <root>/bin/disciple-x4.bin
-#   make help            list every target
+# Objects land in <root>/build/disciple/, never beside the sources.
 #
 # MIT License (see: LICENSE)
 # Copyright (C) 2026 Tomaz Stih
 #
 
 NAME     := disciple
+PLATFORM ?= emulator
 BUILD    ?= debug
 
-# Keep normal builds fully sanitized, with an explicit alternative for
+# Keep debug builds fully sanitized, with an explicit alternative for
 # hosts whose system-wide preload libraries conflict with ASan.
 SANITIZERS ?= address,undefined
 
-# Where the repository root is, relative to this project. Everything
-# generated goes there and nothing is written beside the sources.
 ROOT_DIR ?= ..
 
-# inkerface lives beside tabcast and is built by its own Makefile, which
-# runs CMake into its own build/. Disciple links the static libraries
-# that build leaves behind.
-INKERFACE_DIR ?= $(abspath $(ROOT_DIR)/../inkerface)
+# inkerface, downloaded by the top-level Makefile. PlatformIO reads it
+# from the environment too (platformio.ini), so it is exported.
+INKERFACE_DIR ?= $(abspath $(ROOT_DIR)/deps/inkerface)
+export INKERFACE_DIR
+
+ifeq ($(wildcard $(INKERFACE_DIR)/include/inkerface)$(filter clean,$(MAKECMDGOALS)),)
+    $(error inkerface is not in $(INKERFACE_DIR); run make at the repository root, which downloads it)
+endif
+
 INKERFACE_PROFILE := $(if $(filter release,$(BUILD)),release,debug)
 INKERFACE_LIBS := $(INKERFACE_DIR)/build/$(INKERFACE_PROFILE)
 # inkerface's desktop entry point: main(), which calls program().
 INKERFACE_ENTRY := $(INKERFACE_DIR)/lib/inkerface/src/host/entry.cpp
 
 SRC_DIR  := src
-LIB_DIR  := lib
 INC_DIR  := include
 TEST_DIR := tests
 
@@ -66,10 +56,7 @@ endif
 
 CXX ?= g++
 
-# Every translation unit of the program. Sources live in src/ and in
-# lib/<name>/, and are found rather than listed, so adding a file to the
-# tree is all it takes to get it built.
-SOURCES := $(shell find $(SRC_DIR) $(LIB_DIR) -name '*.cpp' 2>/dev/null)
+SOURCES := $(shell find $(SRC_DIR) -name '*.cpp')
 OBJECTS := $(patsubst %.cpp,$(OBJ_DIR)/%.o,$(SOURCES))
 
 # The entry point, and everything that is not the entry point. Test
@@ -116,31 +103,45 @@ endif
 LINKED  := $(OBJ_DIR)/$(NAME)
 PROGRAM := $(BIN_DIR)/$(NAME)
 
-# Where `make run` and the VS Code launch keep the emulated reader's
-# internal flash, so its Wi-Fi settings and name survive from one run to
-# the next. Created by every build.
-STORAGE ?= $(abspath $(BUILD_DIR)/storage)
+PIO      ?= pio
+FIRMWARE := $(BIN_DIR)/$(NAME)-$(PLATFORM).bin
 
-PIO ?= pio
-X4_IMAGE := $(BIN_DIR)/disciple-x4.bin
+.PHONY: all emulator firmware upload test clean inkerface sdk
 
-.PHONY: all release run test clean distclean help x4 x4-upload inkerface
+ifeq ($(PLATFORM),emulator)
+all: emulator
+else
+all: firmware
+endif
 
-## all: build the reader into the repository bin/ (default)
-all: $(LINKED)
-	@mkdir -p $(BIN_DIR) $(STORAGE)
+# Also makes the emulated reader's internal flash, where make run and the
+# VS Code launch keep its Wi-Fi settings and name between runs.
+emulator: $(LINKED)
+	@mkdir -p $(BIN_DIR) $(BUILD_DIR)/storage
 	@cp -f $< $(PROGRAM)
-	@echo "built $(PROGRAM) ($(BUILD), on inkerface)"
+	@echo "built $(PROGRAM) ($(BUILD), the emulator)"
 
-## release: shorthand for BUILD=release
-release:
-	@$(MAKE) --no-print-directory BUILD=release
+# inkerface's libraries, and only those: its demo and its own tests are
+# inkerface's business, not a Disciple build's. inkerface's Makefile
+# downloads the FreeInk SDK and the filesystem sources the first time;
+# its CMake project, configured as that Makefile configures it, builds
+# the three libraries into inkerface's own build/. CMake decides what is
+# out of date, so it is always asked.
+INKERFACE_BUILD_DIR := $(INKERFACE_DIR)/build/$(INKERFACE_PROFILE)
+INKERFACE_TARGETS   := inkerface_platform freeink_ui host_filesystems
 
-## inkerface: build inkerface's libraries (done by every build)
-# inkerface's own Makefile decides what is out of date, so it is always
-# asked. It downloads the FreeInk SDK the first time.
 inkerface:
-	@$(MAKE) --no-print-directory -C $(INKERFACE_DIR) $(INKERFACE_PROFILE)
+	@$(MAKE) --no-print-directory -C $(INKERFACE_DIR) sdk filesystems
+	@cmake -S $(INKERFACE_DIR) -B $(INKERFACE_BUILD_DIR) \
+	    -DCMAKE_BUILD_TYPE=$(if $(filter release,$(BUILD)),Release,Debug) \
+	    -DFREEINK_SDK_DIR=$(INKERFACE_DIR)/lib/freeink-sdk \
+	    -DINKERFACE_PREVIEW=ON -DINKERFACE_TLS=ON \
+	    -DINKERFACE_BIN_DIR=$(INKERFACE_DIR)/bin/$(INKERFACE_PROFILE) \
+	    >/dev/null
+	@cmake --build $(INKERFACE_BUILD_DIR) --target $(INKERFACE_TARGETS)
+
+sdk:
+	@$(MAKE) --no-print-directory -C $(INKERFACE_DIR) sdk
 
 $(OBJECTS) $(ENTRY_OBJECT) $(TEST_BINARIES): | inkerface
 
@@ -161,46 +162,26 @@ $(OBJ_DIR)/$(TEST_DIR)/%: $(TEST_DIR)/%.cpp $(LIB_OBJECTS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) -o $@ $< $(LIB_OBJECTS) \
 	    $(LDLIBS)
 
-## run: build and run the reader in inkerface's preview window
-run: all
-	@mkdir -p $(STORAGE)
-	INKERFACE_PREVIEW=1 INKERFACE_STORAGE_ROOT=$(STORAGE) $(PROGRAM)
+# PlatformIO builds into <root>/build/disciple/pio/<platform>/; the image
+# is copied to bin/ like every other finished program.
+firmware: sdk
+	$(PIO) run --environment $(PLATFORM)
+	@mkdir -p $(BIN_DIR)
+	@cp -f $(BUILD_DIR)/pio/$(PLATFORM)/firmware.bin $(FIRMWARE)
+	@echo "built $(FIRMWARE)"
 
-## test: build and run every test in tests/
+upload: firmware
+	$(PIO) run --environment $(PLATFORM) --target upload \
+	    $(if $(PORT),--upload-port $(PORT))
+
 test: $(TEST_BINARIES)
 	@for t in $(TEST_BINARIES); do \
 	    echo "running $$t"; \
 	    $$t || exit 1; \
 	done
 
-## x4: build the Xteink X4 firmware into <root>/bin/disciple-x4.bin
-# PlatformIO builds it from platformio.ini, on inkerface, into the root
-# build/; the image is copied to bin/ like every other finished program.
-x4:
-	@$(MAKE) --no-print-directory -C $(INKERFACE_DIR) sdk
-	$(PIO) run -e x4
-	@mkdir -p $(BIN_DIR)
-	@cp -f $(ROOT_DIR)/build/disciple/pio/x4/firmware.bin $(X4_IMAGE)
-	@echo "built $(X4_IMAGE)"
-
-## x4-upload: build the X4 firmware and flash it over USB
-x4-upload: x4
-	$(PIO) run -e x4 -t upload
-
-## clean: remove this project's artifacts for the current build type
 clean:
-	@rm -rf $(BUILD_DIR)/$(BUILD)
-
-# Removes only what this project produced. bin/ is shared with the other
-# parts of the repository, so programs are deleted by name rather than
-# by emptying the directory.
-## distclean: remove all of this project's artifacts and its programs
-distclean:
-	@rm -rf $(BUILD_DIR) $(PROGRAM) $(X4_IMAGE)
-
-## help: list the targets
-help:
-	@grep -hE '^## ' $(firstword $(MAKEFILE_LIST)) | sed 's/^## /  /'
+	@rm -rf $(BUILD_DIR) $(PROGRAM) $(BIN_DIR)/$(NAME)-*.bin
 
 # Header dependencies discovered by the compiler. Included last, and with
 # a leading dash so a first build with no .d files is not an error.

@@ -1,25 +1,19 @@
 #
-# Apostle build.
+# Apostle build. Run by the top-level Makefile; use that one.
 #
 # Apostle is the Tabcast broadcast daemon: it accepts frames from the
 # Evangelist browser extension on loopback and fans them out to every
 # registered Disciple on the network.
 #
-# Artifacts do not stay here. This is one project in a multi-project
-# repository, and the repository has exactly one build/ and one bin/,
-# both at its root. Objects land in build/apostle/<build type>/ and the
-# finished program in bin/apostle. Building from inside this directory
-# works the same way, because the paths are relative to ROOT_DIR.
+# Objects land in <root>/build/apostle/<build type>/ and the program in
+# <root>/bin/apostle, never beside the sources.
 #
-# Two build types. `debug`, the default, carries full warnings and the
-# address and undefined behaviour sanitizers. `release` links the C++
-# runtime into the binary so the daemon ships as one file with nothing
-# to install beside it.
+# Two build types. `debug` carries full warnings and the address and
+# undefined behaviour sanitizers. `release` links the C++ runtime into
+# the binary so the daemon ships as one file with nothing to install
+# beside it.
 #
-#   make                 debug build into <root>/bin/apostle
-#   make BUILD=release   release build into <root>/bin/apostle
-#   make test            build and run the tests
-#   make help            list every target
+# Targets: all (the default), test, clean.
 #
 # MIT License (see: LICENSE)
 # Copyright (C) 2026 Tomaz Stih
@@ -37,7 +31,6 @@ SANITIZERS ?= address,undefined
 ROOT_DIR ?= ..
 
 SRC_DIR  := src
-LIB_DIR  := lib
 INC_DIR  := include
 TEST_DIR := tests
 
@@ -48,12 +41,18 @@ ifeq ($(BUILD),debug)
     OBJ_DIR := $(OBJ_DIR)/$(SANITIZERS)
 endif
 
+# stb_image, downloaded by the top-level Makefile.
+STB_DIR ?= $(abspath $(ROOT_DIR)/deps/stb)
+
+ifeq ($(wildcard $(STB_DIR)/stb_image.h)$(filter clean,$(MAKECMDGOALS)),)
+    $(error stb_image is not in $(STB_DIR); run make at the repository root, which downloads it)
+endif
+
 CXX ?= g++
 
-# Every translation unit of the program. Sources live in src/ and in
-# lib/<name>/, and are found rather than listed, so adding a file to
-# the tree is all it takes to get it built.
-SOURCES := $(shell find $(SRC_DIR) $(LIB_DIR) -name '*.cpp' 2>/dev/null)
+# Every translation unit of the program, found rather than listed, so
+# adding a file to src/ is all it takes to get it built.
+SOURCES := $(shell find $(SRC_DIR) -name '*.cpp')
 OBJECTS := $(patsubst %.cpp,$(OBJ_DIR)/%.o,$(SOURCES))
 
 # The entry point, and everything that is not the entry point. Test
@@ -66,8 +65,9 @@ TEST_BINARIES := $(patsubst $(TEST_DIR)/%.cpp,$(OBJ_DIR)/$(TEST_DIR)/%,\
                    $(TEST_SOURCES))
 
 # -MMD -MP writes a .d file beside every .o listing the headers it
-# read, which is what makes a header edit trigger a rebuild.
-CPPFLAGS += -I$(INC_DIR) -I$(LIB_DIR) -MMD -MP
+# read, which is what makes a header edit trigger a rebuild. stb_image
+# comes in with -isystem, as third-party code.
+CPPFLAGS += -I$(INC_DIR) -isystem $(STB_DIR) -MMD -MP
 CXXFLAGS += -std=c++20 -Wall -Wextra -pedantic
 
 ifeq ($(BUILD),debug)
@@ -90,17 +90,12 @@ endif
 LINKED  := $(OBJ_DIR)/$(NAME)
 PROGRAM := $(BIN_DIR)/$(NAME)
 
-.PHONY: all release run test clean distclean help
+.PHONY: all test clean
 
-## all: build the daemon into the repository bin/ (default)
 all: $(LINKED)
 	@mkdir -p $(BIN_DIR)
 	@cp -f $< $(PROGRAM)
 	@echo "built $(PROGRAM) ($(BUILD))"
-
-## release: shorthand for BUILD=release
-release:
-	@$(MAKE) --no-print-directory BUILD=release
 
 $(LINKED): $(OBJECTS)
 	@mkdir -p $(dir $@)
@@ -115,11 +110,6 @@ $(OBJ_DIR)/$(TEST_DIR)/%: $(TEST_DIR)/%.cpp $(LIB_OBJECTS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) -o $@ $< $(LIB_OBJECTS) \
 	    $(LDLIBS)
 
-## run: build and run the daemon
-run: all
-	@$(PROGRAM)
-
-## test: build and run every test in tests/
 test: $(TEST_BINARIES)
 ifeq ($(strip $(TEST_SOURCES)),)
 	@echo "no tests yet, add a .cpp with a main() to $(TEST_DIR)/"
@@ -130,20 +120,8 @@ else
 	done
 endif
 
-## clean: remove this project's artifacts for the current build type
 clean:
-	@rm -rf $(BUILD_DIR)/$(BUILD)
-
-# Removes only what this project produced. bin/ is shared with the
-# other parts of the repository, so the program is deleted by name
-# rather than by emptying the directory.
-## distclean: remove all of this project's artifacts and its program
-distclean:
 	@rm -rf $(BUILD_DIR) $(PROGRAM)
-
-## help: list the targets
-help:
-	@grep -hE '^## ' $(firstword $(MAKEFILE_LIST)) | sed 's/^## /  /'
 
 # Header dependencies discovered by the compiler. Included last, and
 # with a leading dash so a first build with no .d files is not an

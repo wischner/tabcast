@@ -6,6 +6,10 @@
 /bin/
 /dist/
 
+# Third-party libraries and toolchains, downloaded by the Makefile the
+# first time it needs them. Kept by `make clean`, removed by `make purge`.
+/deps/
+
 # Editor and OS noise.
 *~
 *.swp

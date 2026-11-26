@@ -1,15 +1,15 @@
 # scripts/
 
-Developer automation and toolchains, organised by purpose or target
-platform.
+What the top-level `Makefile` runs, and the service unit. Build logic
+itself does not belong here: each part builds through its own
+`Makefile`, and the top-level one is the only one to use.
 
-- `apostle.service` is the systemd unit for the broadcast daemon. It
-  runs apostle in the foreground on purpose, so systemd can supervise
-  it and capture its log. See the Apostle README.
+| Script | Run by | What it does |
+| --- | --- | --- |
+| `deps.sh` | `make` | Downloads a third-party library into `deps/`, pinned, if it is not there already. |
+| `run.sh` | `make run` | Starts Apostle, Evangelist in Firefox, and Disciple together, and stops them together. |
+| `firefox.py` | `run.sh` | Starts a Firefox with a throwaway profile and Evangelist loaded as a temporary add-on, through Firefox's remote debugging protocol, as Mozilla's web-ext does. Standard library only. |
+| `apostle.service` | systemd | The unit for the broadcast daemon. It runs apostle in the foreground on purpose, so systemd can supervise it and capture its log. See the Apostle README. |
 
-The reader's firmware is built by PlatformIO from
-`disciple/platformio.ini`, on inkerface; there is no toolchain to keep
-here.
-
-Build logic does not belong here. Each part builds through its own
-`Makefile`.
+The tools a build needs are in the build image, `docker/Dockerfile`,
+not here.

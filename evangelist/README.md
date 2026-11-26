@@ -9,14 +9,9 @@ Firefox and Chrome, Manifest V3, one source tree.
 
 ## Build
 
-The only dependency is `python3`. No npm, no bundler, no network.
-
-```sh
-make            # unpacked trees plus loadable archives, see below
-make dist       # same packaged build, for distribution workflows
-make check      # syntax checks and capture lifecycle tests (Node if available)
-make clean
-```
+`make` at the repository root builds it, with the other two parts. The
+build needs only `python3`: no npm, no bundler, no network. The tests
+need Node.js, and run in CI.
 
 Output goes to the repository root, not into this directory. There is
 one `build/` and one `bin/` for all three parts of Tabcast:
@@ -25,35 +20,38 @@ one `build/` and one `bin/` for all three parts of Tabcast:
 | --- | --- |
 | Unpacked Firefox tree, load this while working | `../build/evangelist/firefox/` |
 | Unpacked Chrome tree, load this while working | `../build/evangelist/chrome/` |
-| Signed-and-shipped archives, from `make` or `make dist` | `../bin/evangelist-<version>-firefox.xpi` and `-chrome.zip` |
+| Archives to hand to someone else | `../bin/evangelist-<version>-firefox.xpi` and `-chrome.zip` |
 
 ## Install
 
+The quickest way to try it is `make run` at the repository root, which
+starts a Firefox of its own with Evangelist already loaded, beside
+Apostle and an emulated reader. To load it into a browser by hand:
+
 ### Firefox
 
-1. `make firefox`
+1. `make` at the repository root.
 2. Open `about:debugging#/runtime/this-firefox`.
 3. **Load Temporary Add-on**, and pick
    `build/evangelist/firefox/manifest.json` at the repository root.
-4. **This step is not optional.** Open `about:addons`, click
-   Evangelist, then Permissions, and turn on *Access your data for all
-   websites*.
+4. Open `about:addons`, click Evangelist, then Permissions, and check
+   that *Access your data for all websites* is on. Turn it on if not.
 
-Firefox treats Manifest V3 host permissions as optional and does not
-prompt for them at install time. Without step 4 the control bar
-appears and the Broadcast button reports **captureVisibleTab is not a
-function**, because Firefox does not inject the method at all until
-the `<all_urls>` permission it is gated on has actually been granted.
-This surprises everyone once.
+Older Firefox releases treated Manifest V3 host permissions as optional
+and did not grant them at install time; current ones grant them. Where
+the permission is off, the control bar appears and the Broadcast
+button reports **captureVisibleTab is not a function**, because Firefox
+does not inject the method at all until the `<all_urls>` permission it
+is gated on has actually been granted.
 
 A temporary add-on is removed when Firefox closes. For a permanent
-install, sign the `.xpi` from `make dist` through addons.mozilla.org,
+install, sign the `.xpi` in `bin/` through addons.mozilla.org,
 or run Firefox Developer Edition or Nightly with
 `xpinstall.signatures.required` set to false.
 
 ### Chrome
 
-1. `make chrome`
+1. `make` at the repository root.
 2. Open `chrome://extensions`.
 3. Turn on **Developer mode**.
 4. **Load unpacked**, and pick `build/evangelist/chrome` at the

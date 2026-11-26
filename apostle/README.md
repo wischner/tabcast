@@ -107,9 +107,11 @@ reduced here looks exactly like one a desktop Disciple reduced for
 itself. Readers that do not accept `gray-packed` are sent the page as the
 browser encoded it, as before.
 
-Decoding is `stb_image` (PNG and JPEG, from memory only), vendored
-unmodified in `lib/stb/`, MIT or public domain. It is the only third
-party code in Apostle; see `lib/README.md`.
+Decoding is `stb_image` v2.30 (PNG and JPEG, from memory only), MIT or
+public domain, compiled by `src/stb_image.cpp`. It is the only third
+party code in Apostle. It is not checked in: the top-level `Makefile`
+downloads it unmodified into `deps/stb/`, pinned to a commit and checked
+against its SHA-256.
 
 ## Discovery
 
@@ -133,30 +135,19 @@ protocol document is the source of truth both copies answer to.
 
 ## Build
 
-```sh
-make                 # debug build with sanitizers
-make BUILD=release   # release build
-make test            # build and run the tests
-make clean
-make help
-```
-
-Output goes to the repository root, not into this directory. There is
-one `build/` and one `bin/` for all three parts of Tabcast: objects
-land in `../build/apostle/<build type>/` and the finished daemon in
+`make` at the repository root builds it, with the other two parts, in
+the build image; see the top-level README. Output goes to the
+repository root, not into this directory: objects land in
+`../build/apostle/<build type>/` and the finished daemon in
 `../bin/apostle`.
 
-Needs `g++` with C++20 and GNU Make. Nothing else.
-
-Debug builds carry `-Og -g` and the address and undefined behaviour
-sanitizers. Release builds carry `-O2` and link the C++ runtime into
-the binary.
-
-On hosts where a system preload such as AppProtection conflicts with
-AddressSanitizer, use `make SANITIZERS=undefined` and
-`make test SANITIZERS=undefined`. Debug artifacts are separated into
-`<build type>/<sanitizers>/` so changing this option forces a fresh
-build. The default remains `SANITIZERS=address,undefined`.
+The compiler is `g++` with C++20; the only library is stb_image.
+Release builds, the default, carry `-O2` and link the C++ runtime into
+the binary. `BUILD=debug` carries `-Og -g` and the address and
+undefined behaviour sanitizers, in `<build type>/<sanitizers>/`, so
+changing `SANITIZERS` forces a fresh build. On hosts where a system
+preload such as AppProtection conflicts with AddressSanitizer, use
+`SANITIZERS=undefined`. The tests run in CI.
 
 ## Run
 
@@ -258,8 +249,8 @@ Apostle ships as one file. A release build links `libstdc++` and
 without a matching C++ runtime installed:
 
 ```sh
-make BUILD=release
-ldd ../bin/apostle     # linux-vdso, libc, ld-linux. Nothing else.
+make                   # at the repository root
+ldd bin/apostle        # linux-vdso, libc, ld-linux. Nothing else.
 ```
 
 It is deliberately not a fully static `-static` link. glibc resolves
@@ -307,10 +298,9 @@ apostle/
 │   ├── reduce.h           pages reduced to a reader's panel
 │   └── discovery.h        answering readers that look for Apostle
 ├── src/                   application sources, one per header, and
-│   └── main.cpp           the startup order and the poll loop
-├── lib/
-│   └── stb/               stb_image, vendored, PNG and JPEG decoding
-└── tests/                 run with `make test`
+│   ├── main.cpp           the startup order and the poll loop
+│   └── stb_image.cpp      stb_image, PNG and JPEG only, from deps/stb/
+└── tests/                 run in CI
     ├── test_options.cpp
     ├── test_http.cpp
     ├── test_wire.cpp      the envelope, byte for byte
@@ -318,9 +308,7 @@ apostle/
 ```
 
 No `build/` or `bin/` here. Both live at the repository root and are
-shared with Evangelist and Disciple. `make distclean` removes
-`../build/apostle/` and `../bin/apostle`, and leaves the other parts'
-output alone.
+shared with Evangelist and Disciple.
 
 Coding rules for this project are in
 `docs/standards/CPP-CODING-STYLE.md`.

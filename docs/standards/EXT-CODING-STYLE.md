@@ -195,11 +195,11 @@ The rest:
 
 ## 10. Build and Packaging
 
-- `make` produces an unpacked tree per browser under
-  `build/<project>/`.
-- `make dist` produces loadable archives under `bin/`.
-- `make clean` removes this project's output only. Because `bin/` is
-  shared, delete the archives by name rather than emptying it.
+- `make` at the repository root produces an unpacked tree per browser
+  under `build/<project>/` and loadable archives under `bin/`.
+- The project's own `clean` removes this project's output only.
+  Because `bin/` is shared, delete the archives by name rather than
+  emptying it.
 - The version number lives in `src/manifest.json` and nowhere else.
 - Packaged archives must contain no source maps and no build tools.
 
