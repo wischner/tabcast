@@ -26,9 +26,14 @@ if ! dpkg --validate-version "$package_version" >/dev/null 2>&1; then
 fi
 
 package_arch="${PACKAGE_ARCH:-$(dpkg --print-architecture)}"
-extension_version="$(python3 -c \
-    'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
-    "$project_root/evangelist/src/manifest.json")"
+# The version the extension's archives were built as: a release's, or
+# manifest.json's when the build had none.
+extension_version="${2:-}"
+if [[ -z "$extension_version" ]]; then
+    extension_version="$(python3 -c \
+        'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
+        "$project_root/evangelist/src/manifest.json")"
+fi
 
 apostle="$project_root/bin/apostle"
 disciple="$project_root/bin/disciple"

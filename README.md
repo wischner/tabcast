@@ -68,31 +68,32 @@ firmware without flashing it.
 
 ### What a machine needs
 
-Make, git, curl, and Docker. Nothing else is installed on the machine.
-Every build runs in a Docker image, described by
-[docker/Dockerfile](docker/Dockerfile), with the compilers, CMake,
-PlatformIO, and the headers in it. `make` builds that image the first
+Make and Docker. Nothing else is installed on the machine. Every build
+runs in a Docker image, described by
+[docker/Dockerfile](docker/Dockerfile), with the compiler, PlatformIO,
+and the headers in it, on Ubuntu 26.04, the release inkerface is built
+on. The programs it builds therefore run on Ubuntu 26.04 and newer. `make` builds that image the first
 time, then runs the build in it with this repository mounted at its own
 path and as you, so what it writes is yours and lands where it would
 without Docker. Editing the Dockerfile makes the next `make` build a
 new image. `make DOCKER=no` builds with this machine's own tools
 instead, if they are all there.
 
-Third-party libraries are downloaded the first time a build needs them,
-into `deps/`, and kept:
+Third-party code is downloaded into `deps/` the first time a build needs
+it, and kept:
 
-| Library | For | Pinned in the `Makefile` |
+| What | For | Which |
 | --- | --- | --- |
-| [inkerface](https://github.com/wischner/inkerface) | Disciple's platform. It brings the FreeInk SDK, which it downloads into itself. | `INKERFACE_REV` |
-| [stb_image](https://github.com/nothings/stb) | Apostle's PNG and JPEG decoder, checked against its SHA-256. | `STB_REV`, `STB_SHA256` |
-| PlatformIO toolchains | Reader firmware. | by `disciple/platformio.ini` |
+| [inkerface](https://github.com/wischner/inkerface) | Disciple's platform, prebuilt: the Linux libraries for the emulator, and the X4 library with the `platformio.ini` it was built with. | Always the latest release |
+| [stb_image](https://github.com/nothings/stb) | Apostle's PNG and JPEG decoder, checked against its SHA-256. | `STB_REV` in the `Makefile` |
+| PlatformIO toolchains | Reader firmware. | The platform inkerface's release names |
 
-A library already in `deps/` is left alone. When a pin moves, a
-downloaded inkerface follows it, unless it has local changes. Downloads
-use this machine's git, so the inkerface repository needs only to be
-readable by you. To build against an inkerface checkout of your own,
-`make INKERFACE_DIR=../inkerface`; that one is never downloaded, moved,
-or cleaned.
+Tabcast never builds inkerface. Every build asks GitHub for inkerface's
+latest release and downloads it when it is newer than the one in
+`deps/inkerface/`; offline, the build carries on with the one it has.
+While the inkerface repository is private, GitHub shows its releases
+only to a token that can read it: set `GITHUB_TOKEN` (or `GH_TOKEN`) in
+your shell, and `make` passes it into the build image.
 
 ### Running it
 
@@ -123,6 +124,31 @@ make deploy PLATFORM=x4
 That builds the firmware and flashes it to the first reader on USB.
 `PORT=/dev/ttyACM1` names another. The reader keeps its Wi-Fi settings
 and its name across a deploy.
+
+### Releasing
+
+The GitHub pipeline, [.github/workflows/build.yml](.github/workflows/build.yml),
+runs the same `make` in the same image, builds Disciple for the emulator
+and for every reader, runs all the tests, and builds the Debian package.
+
+```sh
+git tag v1.2.3 && git push origin v1.2.3
+```
+
+A tag `vX.Y.Z` stamps that version into all three parts and publishes a
+GitHub release `vX.Y.Z` with `tabcast_X.Y.Z_amd64.deb`, the firmware for
+each reader (`disciple-X.Y.Z-x4.bin`), and the extension for Firefox and
+Chrome. **Run workflow** in the Actions tab does all of it without a
+version and without a release, for testing; the files are attached to
+the run instead.
+
+While inkerface's repository is private, the pipeline needs the
+repository secret `INKERFACE_TOKEN`: a fine-grained token with read
+access to the contents of `wischner/inkerface`. Once inkerface is
+public it needs nothing.
+
+Locally, `make VERSION=1.2.3` stamps a version the same way, and `make`
+on a commit tagged `vX.Y.Z` uses that one.
 
 ### Output
 

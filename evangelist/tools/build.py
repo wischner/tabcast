@@ -145,7 +145,7 @@ def package(out_dir, archive_path):
                 archive.write(full, os.path.relpath(full, out_dir))
 
 
-def build(src_dir, build_dir, dist_dir, target):
+def build(src_dir, build_dir, dist_dir, target, version=None):
     """Build one browser target.
 
     Parameters:
@@ -167,6 +167,8 @@ def build(src_dir, build_dir, dist_dir, target):
         bin/ alongside the compiled programs.
     """
     manifest = load_manifest(src_dir, target)
+    if version:
+        manifest["version"] = version
     out_dir = os.path.join(build_dir, target)
 
     copy_sources(src_dir, out_dir)
@@ -206,6 +208,9 @@ def main(argv):
     parser.add_argument("--dist",
                         help="where the archives go. Packaging is "
                              "skipped unless this is given")
+    parser.add_argument("--version",
+                        help="the version to build, such as a release's, "
+                             "instead of the one in manifest.json")
     parser.add_argument("--target", action="append", choices=TARGETS,
                         help="browser to build, repeatable, "
                              "defaults to all of them")
@@ -214,7 +219,7 @@ def main(argv):
     os.makedirs(args.out, exist_ok=True)
 
     for target in args.target or sorted(TARGETS):
-        status = build(args.src, args.out, args.dist, target)
+        status = build(args.src, args.out, args.dist, target, args.version)
         if status != 0:
             return status
     return 0

@@ -21,9 +21,10 @@ the tree.
 - `lib/<name>/` contains the implementation of a library such as
   `lib/dbf/`.
 - Third-party libraries are never checked in. The top-level `Makefile`
-  downloads each one into the root `deps/` the first time a build needs
-  it, pinned to an exact revision and, for a single file, checked
-  against its SHA-256. `deps/` is ignored by git, kept by `make clean`,
+  downloads each one into the root `deps/` when a build needs it:
+  inkerface as its latest release, prebuilt, and anything else pinned
+  to an exact revision and, for a single file, checked against its
+  SHA-256. `deps/` is ignored by git, kept by `make clean`,
   and removed by `make purge`.
 - `bin/` contains final programs and other final generated outputs.
 - `build/` contains all build artifacts, including object files,
@@ -171,7 +172,7 @@ Rules:
   included.
 - Builds run in the Docker build image, `docker/Dockerfile`. A tool a
   build needs goes into that image, never onto the developer's
-  machine, which needs only make, git, curl, and Docker.
+  machine, which needs only make and Docker.
 - The `Makefile` must discover sources under `src/` and `lib/` rather
   than listing them, so adding a file to the tree is enough to get it
   built.

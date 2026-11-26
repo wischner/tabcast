@@ -17,8 +17,14 @@
 
 namespace disciple {
 
+// The version a release stamps in with -DTABCAST_VERSION, and the
+// version of these sources otherwise.
+#ifndef TABCAST_VERSION
+#define TABCAST_VERSION "0.1.0"
+#endif
+
 // Human readable client version.
-inline constexpr const char *version = "0.1.0";
+inline constexpr const char *version = TABCAST_VERSION;
 
 // Wire protocol revision this build speaks. See docs/PROTOCOL.md.
 inline constexpr int protocol_version = 1;

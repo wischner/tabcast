@@ -116,12 +116,12 @@ make run                    # Apostle, Evangelist, and the emulator, here
 make help                   # every platform
 ```
 
-inkerface is downloaded into `../deps/inkerface/` the first time, at
-the revision the top-level `Makefile` pins, and it downloads the FreeInk
-SDK into itself. The emulator links inkerface's three libraries, built
-by inkerface's own CMake project into inkerface's own `build/`, and
-inkerface's desktop entry point, `main()`, which calls Disciple's
-`program()`. Objects land in `../build/disciple/<build type>/`.
+Disciple links inkerface's latest release, which the top-level
+`Makefile` keeps in `../deps/inkerface/`; inkerface is never built
+here. The emulator links the release's Linux library for the build
+type, `linux-release/` or `linux-debug/`, with the flags its pkg-config
+file gives, and its `libinkerface_main.a`, whose `main()` calls
+Disciple's `program()`. Objects land in `../build/disciple/<build type>/`.
 
 ### The firmware
 

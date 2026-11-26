@@ -10,6 +10,11 @@
 #                       its [env:<reader>] in platformio.ini, into
 #                       <root>/bin/disciple-<reader>.bin
 #
+# Both link inkerface's latest release, which the top-level Makefile
+# keeps in <root>/deps/inkerface: the Linux libraries through their
+# pkg-config file, and the reader's library through its platformio.ini.
+# inkerface itself is never built here.
+#
 # Targets: all (the default), upload (flash a reader on PORT), test (the
 # tests, on the emulator), clean.
 #
@@ -29,19 +34,21 @@ SANITIZERS ?= address,undefined
 
 ROOT_DIR ?= ..
 
-# inkerface, downloaded by the top-level Makefile. PlatformIO reads it
-# from the environment too (platformio.ini), so it is exported.
+# inkerface's release. PlatformIO reads it from the environment too
+# (platformio.ini), so it is exported.
 INKERFACE_DIR ?= $(abspath $(ROOT_DIR)/deps/inkerface)
 export INKERFACE_DIR
 
-ifeq ($(wildcard $(INKERFACE_DIR)/include/inkerface)$(filter clean,$(MAKECMDGOALS)),)
+ifeq ($(wildcard $(INKERFACE_DIR)/VERSION)$(filter clean,$(MAKECMDGOALS)),)
     $(error inkerface is not in $(INKERFACE_DIR); run make at the repository root, which downloads it)
 endif
 
-INKERFACE_PROFILE := $(if $(filter release,$(BUILD)),release,debug)
-INKERFACE_LIBS := $(INKERFACE_DIR)/build/$(INKERFACE_PROFILE)
-# inkerface's desktop entry point: main(), which calls program().
-INKERFACE_ENTRY := $(INKERFACE_DIR)/lib/inkerface/src/host/entry.cpp
+# The Linux library for this build type: include/, and lib/ with a
+# relocatable pkg-config file, which knows what the library needs (X11,
+# OpenSSL, threads).
+INKERFACE_PREFIX := $(INKERFACE_DIR)/linux-$(if $(filter release,$(BUILD)),release,debug)
+inkerface_config  = $(shell PKG_CONFIG_PATH=$(INKERFACE_PREFIX)/lib/pkgconfig \
+                        pkg-config $(1) inkerface)
 
 SRC_DIR  := src
 INC_DIR  := include
@@ -54,16 +61,31 @@ ifeq ($(BUILD),debug)
     OBJ_DIR := $(OBJ_DIR)/$(SANITIZERS)
 endif
 
+# The version, when a release stamps one in; otherwise version.h's own.
+# A stamp file holds the last one built, so changing it rebuilds.
+VERSION ?=
+VERSION_STAMP := $(OBJ_DIR)/version
+ifeq ($(filter clean,$(MAKECMDGOALS)),)
+    $(shell mkdir -p $(OBJ_DIR) && { [ -f $(VERSION_STAMP) ] && \
+        [ "$$(cat $(VERSION_STAMP))" = "$(VERSION)" ]; } || \
+        echo '$(VERSION)' > $(VERSION_STAMP))
+endif
+CPPFLAGS += $(if $(VERSION),-DTABCAST_VERSION='"$(VERSION)"')
+
+# The same, for the firmware, which PlatformIO compiles
+# (build_src_flags in platformio.ini).
+export TABCAST_VERSION_FLAG := $(if $(VERSION),'-DTABCAST_VERSION="$(VERSION)"')
+
 CXX ?= g++
 
 SOURCES := $(shell find $(SRC_DIR) -name '*.cpp')
 OBJECTS := $(patsubst %.cpp,$(OBJ_DIR)/%.o,$(SOURCES))
 
-# The entry point, and everything that is not the entry point. Test
-# binaries bring their own main(), so they link the second set only.
-MAIN_OBJECT  := $(OBJ_DIR)/$(SRC_DIR)/main.o
-ENTRY_OBJECT := $(OBJ_DIR)/inkerface/entry.o
-LIB_OBJECTS  := $(filter-out $(MAIN_OBJECT),$(OBJECTS))
+# The program's own main.cpp, and everything else. The program links
+# inkerface's main(), which calls program(); test binaries bring their
+# own main() and link neither.
+MAIN_OBJECT := $(OBJ_DIR)/$(SRC_DIR)/main.o
+LIB_OBJECTS := $(filter-out $(MAIN_OBJECT),$(OBJECTS))
 
 TEST_SOURCES := $(wildcard $(TEST_DIR)/*.cpp)
 TEST_BINARIES := $(patsubst $(TEST_DIR)/%.cpp,$(OBJ_DIR)/$(TEST_DIR)/%,\
@@ -73,15 +95,15 @@ TEST_BINARIES := $(patsubst $(TEST_DIR)/%.cpp,$(OBJ_DIR)/$(TEST_DIR)/%,\
 # which is what makes a header edit trigger a rebuild. inkerface's
 # headers come in with -isystem, so this project's warnings judge its own
 # code only.
-CPPFLAGS += -I$(INC_DIR) -isystem $(INKERFACE_DIR)/include -MMD -MP
+CPPFLAGS += -I$(INC_DIR) \
+            $(patsubst -I%,-isystem %,$(call inkerface_config,--cflags)) \
+            -MMD -MP
 CXXFLAGS += -std=c++20 -Wall -Wextra -pedantic
 
-# inkerface's libraries and what they need: X11 for the preview window,
-# OpenSSL for TLS. The libraries themselves are linked statically.
-LDLIBS += $(INKERFACE_LIBS)/libinkerface_platform.a \
-          $(INKERFACE_LIBS)/libfreeink_ui.a \
-          $(INKERFACE_LIBS)/libhost_filesystems.a \
-          -lssl -lcrypto -lX11
+# inkerface's libraries, linked statically, and the system libraries
+# they need.
+PROGRAM_LIBS := $(call inkerface_config,--libs)
+TEST_LIBS    := $(filter-out -linkerface_main,$(PROGRAM_LIBS))
 
 ifeq ($(BUILD),debug)
     CXXFLAGS += -g -Og -fno-omit-frame-pointer \
@@ -106,7 +128,7 @@ PROGRAM := $(BIN_DIR)/$(NAME)
 PIO      ?= pio
 FIRMWARE := $(BIN_DIR)/$(NAME)-$(PLATFORM).bin
 
-.PHONY: all emulator firmware upload test clean inkerface sdk
+.PHONY: all emulator firmware upload test clean
 
 ifeq ($(PLATFORM),emulator)
 all: emulator
@@ -119,39 +141,11 @@ endif
 emulator: $(LINKED)
 	@mkdir -p $(BIN_DIR) $(BUILD_DIR)/storage
 	@cp -f $< $(PROGRAM)
-	@echo "built $(PROGRAM) ($(BUILD), the emulator)"
+	@echo "built $(PROGRAM) ($(BUILD), the emulator, on inkerface $(shell cat $(INKERFACE_DIR)/VERSION))"
 
-# inkerface's libraries, and only those: its demo and its own tests are
-# inkerface's business, not a Disciple build's. inkerface's Makefile
-# downloads the FreeInk SDK and the filesystem sources the first time;
-# its CMake project, configured as that Makefile configures it, builds
-# the three libraries into inkerface's own build/. CMake decides what is
-# out of date, so it is always asked.
-INKERFACE_BUILD_DIR := $(INKERFACE_DIR)/build/$(INKERFACE_PROFILE)
-INKERFACE_TARGETS   := inkerface_platform freeink_ui host_filesystems
-
-inkerface:
-	@$(MAKE) --no-print-directory -C $(INKERFACE_DIR) sdk filesystems
-	@cmake -S $(INKERFACE_DIR) -B $(INKERFACE_BUILD_DIR) \
-	    -DCMAKE_BUILD_TYPE=$(if $(filter release,$(BUILD)),Release,Debug) \
-	    -DFREEINK_SDK_DIR=$(INKERFACE_DIR)/lib/freeink-sdk \
-	    -DINKERFACE_PREVIEW=ON -DINKERFACE_TLS=ON \
-	    -DINKERFACE_BIN_DIR=$(INKERFACE_DIR)/bin/$(INKERFACE_PROFILE) \
-	    >/dev/null
-	@cmake --build $(INKERFACE_BUILD_DIR) --target $(INKERFACE_TARGETS)
-
-sdk:
-	@$(MAKE) --no-print-directory -C $(INKERFACE_DIR) sdk
-
-$(OBJECTS) $(ENTRY_OBJECT) $(TEST_BINARIES): | inkerface
-
-$(LINKED): $(OBJECTS) $(ENTRY_OBJECT)
+$(LINKED): $(OBJECTS)
 	@mkdir -p $(dir $@)
-	$(CXX) $(LDFLAGS) -o $@ $(OBJECTS) $(ENTRY_OBJECT) $(LDLIBS)
-
-$(ENTRY_OBJECT): $(INKERFACE_ENTRY)
-	@mkdir -p $(dir $@)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+	$(CXX) $(LDFLAGS) -o $@ $(OBJECTS) $(PROGRAM_LIBS)
 
 $(OBJ_DIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
@@ -160,15 +154,15 @@ $(OBJ_DIR)/%.o: %.cpp
 $(OBJ_DIR)/$(TEST_DIR)/%: $(TEST_DIR)/%.cpp $(LIB_OBJECTS)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) -o $@ $< $(LIB_OBJECTS) \
-	    $(LDLIBS)
+	    $(TEST_LIBS)
 
 # PlatformIO builds into <root>/build/disciple/pio/<platform>/; the image
 # is copied to bin/ like every other finished program.
-firmware: sdk
+firmware:
 	$(PIO) run --environment $(PLATFORM)
 	@mkdir -p $(BIN_DIR)
 	@cp -f $(BUILD_DIR)/pio/$(PLATFORM)/firmware.bin $(FIRMWARE)
-	@echo "built $(FIRMWARE)"
+	@echo "built $(FIRMWARE) (on inkerface $(shell cat $(INKERFACE_DIR)/VERSION))"
 
 upload: firmware
 	$(PIO) run --environment $(PLATFORM) --target upload \
@@ -183,8 +177,10 @@ test: $(TEST_BINARIES)
 clean:
 	@rm -rf $(BUILD_DIR) $(PROGRAM) $(BIN_DIR)/$(NAME)-*.bin
 
+# A new version recompiles everything that might print it.
+$(OBJECTS): $(VERSION_STAMP)
+
 # Header dependencies discovered by the compiler. Included last, and with
 # a leading dash so a first build with no .d files is not an error.
 -include $(OBJECTS:.o=.d)
--include $(ENTRY_OBJECT:.o=.d)
 -include $(TEST_BINARIES:=.d)

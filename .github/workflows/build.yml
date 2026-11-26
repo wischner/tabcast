@@ -1,0 +1,146 @@
+# Builds all of Tabcast, tests it, and packages it: Evangelist, Apostle,
+# Disciple's emulator and every reader's firmware, and the Debian
+# package. Everything runs through the top-level Makefile, in the build
+# image docker/Dockerfile describes, exactly as on a desktop.
+#
+# Two ways to run it:
+#
+#   Push a vX.Y.Z tag, such as v1.2.3. All three parts are stamped with
+#   that version, and a GitHub release vX.Y.Z is published with the
+#   package, the reader firmware, and the extension.
+#
+#   "Run workflow" in the Actions tab, on any branch. A test run: the
+#   parts keep the version their sources carry, nothing is released,
+#   and the outputs are attached to the run as an artifact.
+#
+# Disciple links inkerface's latest release, which the Makefile
+# downloads. While the inkerface repository is private, that needs the
+# INKERFACE_TOKEN secret: a token that can read wischner/inkerface
+# (fine-grained, Contents: read). Once it is public, no secret is needed.
+#
+# MIT License (see: LICENSE)
+# Copyright (C) 2026 Tomaz Stih
+
+name: build
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build, test, and package
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v6
+
+      - name: Version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            version="${GITHUB_REF_NAME#v}"
+            echo "version=$version" >>"$GITHUB_OUTPUT"
+            echo "package=$version" >>"$GITHUB_OUTPUT"
+            echo "release=true" >>"$GITHUB_OUTPUT"
+          else
+            source="$(python3 -c 'import json; print(json.load(open("evangelist/src/manifest.json"))["version"])')"
+            echo "version=" >>"$GITHUB_OUTPUT"
+            echo "package=${source}~dev.${GITHUB_RUN_NUMBER}" >>"$GITHUB_OUTPUT"
+            echo "release=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      # PlatformIO's platform and toolchains, a few gigabytes, so a run
+      # downloads them only when the reader platforms change.
+      - name: Restore PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: deps/platformio
+          key: platformio-${{ hashFiles('disciple/platformio.ini', 'docker/Dockerfile') }}
+          restore-keys: platformio-
+
+      - name: Build
+        env:
+          GITHUB_TOKEN: ${{ secrets.INKERFACE_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          make VERSION="$VERSION"
+          for platform in $(sed -n 's/^\[env:\(.*\)\]$/\1/p' disciple/platformio.ini); do
+            make PLATFORM="$platform" VERSION="$VERSION"
+          done
+
+      # The tests and the package, in the same image the build used.
+      - name: Test and package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PACKAGE: ${{ steps.version.outputs.package }}
+        run: |
+          image="tabcast-build:$(sha256sum docker/Dockerfile | cut -c1-12)"
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --volume "$PWD:$PWD" \
+            --workdir "$PWD" \
+            --env VERSION --env PACKAGE \
+            "$image" \
+            bash -euo pipefail -c '
+              make -C evangelist check VERSION="$VERSION"
+              make -C apostle test SANITIZERS=undefined
+              make -C disciple test SANITIZERS=undefined
+              packaging/build-deb.sh "$PACKAGE" "$VERSION"
+            '
+
+      - name: Collect
+        id: collect
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PACKAGE: ${{ steps.version.outputs.package }}
+        run: |
+          name="${VERSION:-$(python3 -c 'import json; print(json.load(open("evangelist/src/manifest.json"))["version"])')}"
+          mkdir -p release
+          cp "dist/tabcast_${PACKAGE}_amd64.deb" release/
+          cp bin/evangelist-"$name"-firefox.xpi bin/evangelist-"$name"-chrome.zip release/
+          for firmware in bin/disciple-*.bin; do
+            platform="${firmware#bin/disciple-}"
+            cp "$firmware" "release/disciple-$name-$platform"
+          done
+          ls -l release
+          dpkg-deb --info release/*.deb
+
+      # The package installs and runs on a fresh system.
+      - name: Verify the package
+        run: |
+          docker run --rm \
+            --volume "$PWD/release:/release:ro" \
+            ubuntu:26.04 \
+            bash -euo pipefail -c '
+              apt-get update
+              apt-get install --yes /release/*.deb
+              apostle --version
+              disciple --version
+              # Headless: no input, so it draws its splash and stops.
+              INKERFACE_FRAME_PATH=/tmp/tabcast-frame.pbm disciple </dev/null
+              test -s /tmp/tabcast-frame.pbm
+              test -f /usr/share/tabcast/evangelist/evangelist-firefox.xpi
+              test -f /usr/share/tabcast/evangelist/evangelist-chrome.zip
+            '
+
+      - name: Upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: tabcast-${{ steps.version.outputs.package }}
+          path: release/*
+          if-no-files-found: error
+
+      - name: Publish release
+        if: steps.version.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --title "Tabcast $GITHUB_REF_NAME" --generate-notes

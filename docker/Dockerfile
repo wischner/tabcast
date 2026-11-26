@@ -7,29 +7,31 @@
 # calling user, so what it writes is that user's and lands where it
 # would without Docker.
 #
-# Ubuntu 24.04 because the programs built here also run on any newer
-# release, and because that is what the Debian package is built for.
+# Ubuntu 26.04, the release inkerface's own images build on: Disciple
+# links inkerface's prebuilt libraries, and those want the compiler and
+# C library they were built with. The programs built here, and the
+# Debian package, therefore run on Ubuntu 26.04 and newer.
 #
-# The image carries tools only. What a build downloads, inkerface, stb,
-# the FreeInk SDK, and PlatformIO's toolchains, goes to the repository's
+# The image carries tools only. What a build downloads, inkerface's
+# release, stb, and PlatformIO's toolchains, goes to the repository's
 # deps/ directory, so it is fetched once and survives `make clean`.
 #
 # MIT License (see: LICENSE)
 # Copyright (C) 2026 Tomaz Stih
 
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-# C++ compiler and make for Apostle and Disciple. CMake, git, patch,
-# OpenSSL, and X11 headers for inkerface. curl for downloads. Python 3
-# for the extension's build, inkerface's downloads, and PlatformIO.
-# Node.js only for the extension's tests. dpkg-dev for the package.
+# C++ compiler and make for Apostle and Disciple. OpenSSL and X11
+# headers, and pkg-config, to link inkerface's release. curl and Python 3
+# for downloads; Python 3 also for the extension's build and PlatformIO.
+# git, which PlatformIO uses for some packages. Node.js only for the
+# extension's tests. dpkg-dev for the package.
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
         build-essential \
         ca-certificates \
-        cmake \
         curl \
         dpkg-dev \
         git \
@@ -37,18 +39,21 @@ RUN apt-get update \
         libx11-dev \
         make \
         nodejs \
-        patch \
+        pkg-config \
         python3 \
         python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-# PlatformIO builds and flashes reader firmware. The version every
-# reader build has been verified with. Its toolchains are downloaded per
-# board on first use, into deps/platformio (PLATFORMIO_CORE_DIR).
+# PlatformIO builds and flashes reader firmware, the version inkerface's
+# releases are built with. Its toolchains are downloaded per board on
+# first use, into deps/platformio (PLATFORMIO_CORE_DIR).
+ARG PLATFORMIO_VERSION=6.2.0
 RUN python3 -m venv /opt/platformio \
-    && /opt/platformio/bin/pip install --no-cache-dir platformio==6.1.19
+    && /opt/platformio/bin/pip install --no-cache-dir \
+        "platformio==${PLATFORMIO_VERSION}"
 
 ENV PATH=/opt/platformio/bin:$PATH
 
 # Builds run as the calling user, who has no home in the image.
-ENV HOME=/tmp
+ENV HOME=/tmp \
+    PLATFORMIO_DISABLE_PROGRESSBAR=true

@@ -16,16 +16,16 @@
 #   make purge               clean, and delete what builds downloaded
 #
 # Builds run in Docker, in the image docker/Dockerfile describes, so a
-# machine needs only make, git, curl, and Docker. The image is built the
-# first time.
+# machine needs only make and Docker. The image is built the first time.
 # DOCKER=no builds with this machine's own tools instead; that is also
 # what runs inside the image.
 #
-# Third-party libraries are downloaded into deps/ the first time and
-# kept: inkerface (Disciple's platform, which brings the FreeInk SDK),
-# stb_image (Apostle's PNG and JPEG decoder), and PlatformIO's reader
-# toolchains. Each is pinned below. deps/ is not checked in, survives
-# `make clean`, and goes with `make purge`.
+# Third-party code is downloaded into deps/ and kept there: inkerface's
+# latest release (Disciple's platform, prebuilt), stb_image (Apostle's
+# PNG and JPEG decoder, pinned below), and PlatformIO's reader
+# toolchains. Every build asks whether inkerface has a newer release,
+# and downloads it if so. deps/ is not checked in, survives `make clean`,
+# and goes with `make purge`.
 #
 # Output, the same with or without Docker:
 #
@@ -58,25 +58,29 @@ ifneq ($(filter deploy,$(MAKECMDGOALS)),)
     endif
 endif
 
+# The version stamped into all three parts: X.Y.Z from a vX.Y.Z tag on
+# this commit, which is how a release is made. Without one, each part
+# keeps the version its sources carry.
+VERSION ?= $(patsubst v%,%,$(shell git describe --tags --exact-match \
+    --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null))
+ifneq ($(VERSION),)
+    ifneq ($(shell echo '$(VERSION)' | grep -Ex '[0-9]+\.[0-9]+\.[0-9]+'),$(VERSION))
+        $(error VERSION must be three numbers, such as 1.2.3, got '$(VERSION)')
+    endif
+endif
+
 # release is what bin/ is for. debug adds symbols and sanitizers, for the
 # debugger.
 BUILD ?= release
 
 DOCKER ?= yes
 
-# --- Third-party libraries, pinned -------------------------------------
+# --- Third-party code --------------------------------------------------
 
 DEPS := $(CURDIR)/deps
 
-INKERFACE_URL := https://github.com/wischner/inkerface.git
-INKERFACE_REV := 1321cc6751cf09880f17fcf6f015923cfb6ec21d
-# Point this at a checkout of your own to build against it instead. It
-# is then never downloaded, moved, or cleaned.
-# Absolute, because the Disciple build runs from disciple/ and Docker
-# mounts it by path.
-INKERFACE_DIR ?= $(DEPS)/inkerface
-override INKERFACE_DIR := $(abspath $(INKERFACE_DIR))
-MANAGED_INKERFACE := $(DEPS)/inkerface
+# inkerface's latest release, always; scripts/inkerface.py says how.
+INKERFACE_DIR := $(DEPS)/inkerface
 
 STB_REV    := f58f558c120e9b32c217290b80bad1a0729fbb2c
 STB_SHA256 := 594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3
@@ -92,18 +96,19 @@ export PLATFORMIO_CORE_DIR := $(DEPS)/platformio
 IMAGE := tabcast-build:$(shell sha256sum docker/Dockerfile | cut -c1-12)
 
 # The repository at the same path inside as outside, as this user, on
-# this machine's network, which discovery and downloads both want.
+# this machine's network, which discovery and downloads both want. A
+# GitHub token, when this machine has one set, goes in too: inkerface's
+# releases need one while its repository is private.
 docker_run = docker run --rm --init \
     --user $(shell id -u):$(shell id -g) \
     --network host \
     --volume $(CURDIR):$(CURDIR) \
-    $(if $(filter $(CURDIR)/%,$(INKERFACE_DIR)),,\
-        --volume $(INKERFACE_DIR):$(INKERFACE_DIR)) \
     --workdir $(CURDIR) \
+    --env GITHUB_TOKEN --env GH_TOKEN \
     $(1) $(IMAGE)
 
 # What the build inside Docker is told.
-passed := PLATFORM=$(PLATFORM) BUILD=$(BUILD) INKERFACE_DIR=$(INKERFACE_DIR) \
+passed := PLATFORM=$(PLATFORM) BUILD=$(BUILD) VERSION=$(VERSION) \
     $(if $(SANITIZERS),SANITIZERS=$(SANITIZERS))
 
 # --- Deploying ---------------------------------------------------------
@@ -120,12 +125,10 @@ JOBS := $(shell nproc 2>/dev/null || echo 4)
 
 ifeq ($(DOCKER),yes)
 
-# Libraries are downloaded out here, with this machine's git and its
-# credentials, so a private repository downloads for whoever can see it.
-all: image deps
+all: image
 	@$(call docker_run,) make --no-print-directory DOCKER=no $(passed)
 
-deploy: image deps
+deploy: image
 	@if [ -z "$(PORT)" ]; then \
 	    echo "deploy     no reader on USB. Connect it, switch it on, and" \
 	         "try again, or name its port: PORT=/dev/ttyACM0" >&2; \
@@ -162,8 +165,6 @@ run: all
 
 clean:
 	@rm -rf build bin dist
-	@rm -rf $(MANAGED_INKERFACE)/build $(MANAGED_INKERFACE)/bin \
-	    $(MANAGED_INKERFACE)/.pio
 	@find apostle disciple evangelist scripts packaging \
 	    -name __pycache__ -prune -exec rm -rf {} +
 	@echo "cleaned build/, bin/, and dist/; deps/ kept"
@@ -177,7 +178,7 @@ purge: clean
 	@echo "purged deps/ and the build image"
 
 help:
-	@echo "Tabcast"
+	@echo "Tabcast $(if $(VERSION),$(VERSION),(no release tag on this commit))"
 	@echo
 	@echo "  make                       build Evangelist, Apostle, and Disciple into bin/"
 	@echo "  make run                   build, then run all three on this machine"
@@ -195,25 +196,26 @@ help:
 	         printf "  %-11s %s, bin/disciple-%s.bin\n", name, $$0, name; \
 	         name = "" }' disciple/platformio.ini
 	@echo
-	@echo "Builds run in Docker; this machine needs only make, git, curl, and Docker."
+	@echo "Builds run in Docker; this machine needs only make and Docker."
 
 # --- The build itself, with this machine's tools or inside Docker ------
 
 deps:
-ifeq ($(INKERFACE_DIR),$(MANAGED_INKERFACE))
-	@scripts/deps.sh git $(MANAGED_INKERFACE) $(INKERFACE_URL) $(INKERFACE_REV)
-endif
+	@scripts/inkerface.py $(INKERFACE_DIR)
 	@scripts/deps.sh file $(STB_DIR)/stb_image.h $(STB_URL) $(STB_SHA256)
 
 evangelist:
-	@$(MAKE) --no-print-directory -C evangelist
+	@$(MAKE) --no-print-directory -C evangelist $(if $(VERSION),VERSION=$(VERSION))
 
 apostle: deps
 	@$(MAKE) --no-print-directory -C apostle -j$(JOBS) BUILD=$(BUILD) \
-	    STB_DIR=$(STB_DIR) $(if $(SANITIZERS),SANITIZERS=$(SANITIZERS))
+	    VERSION=$(VERSION) STB_DIR=$(STB_DIR) \
+	    $(if $(SANITIZERS),SANITIZERS=$(SANITIZERS))
 
 disciple: deps
-	@$(MAKE) --no-print-directory -C disciple -j$(JOBS) $(passed)
+	@$(MAKE) --no-print-directory -C disciple -j$(JOBS) $(passed) \
+	    INKERFACE_DIR=$(INKERFACE_DIR)
 
 upload: deps
-	@$(MAKE) --no-print-directory -C disciple $(passed) PORT=$(PORT) upload
+	@$(MAKE) --no-print-directory -C disciple $(passed) \
+	    INKERFACE_DIR=$(INKERFACE_DIR) PORT=$(PORT) upload

@@ -48,6 +48,17 @@ ifeq ($(wildcard $(STB_DIR)/stb_image.h)$(filter clean,$(MAKECMDGOALS)),)
     $(error stb_image is not in $(STB_DIR); run make at the repository root, which downloads it)
 endif
 
+# The version, when a release stamps one in; otherwise version.h's own.
+# A stamp file holds the last one built, so changing it rebuilds.
+VERSION ?=
+VERSION_STAMP := $(OBJ_DIR)/version
+ifeq ($(filter clean,$(MAKECMDGOALS)),)
+    $(shell mkdir -p $(OBJ_DIR) && { [ -f $(VERSION_STAMP) ] && \
+        [ "$$(cat $(VERSION_STAMP))" = "$(VERSION)" ]; } || \
+        echo '$(VERSION)' > $(VERSION_STAMP))
+endif
+CPPFLAGS += $(if $(VERSION),-DTABCAST_VERSION='"$(VERSION)"')
+
 CXX ?= g++
 
 # Every translation unit of the program, found rather than listed, so
@@ -126,5 +137,7 @@ clean:
 # Header dependencies discovered by the compiler. Included last, and
 # with a leading dash so a first build with no .d files is not an
 # error.
+$(OBJECTS): $(VERSION_STAMP)
+
 -include $(OBJECTS:.o=.d)
 -include $(TEST_BINARIES:=.d)

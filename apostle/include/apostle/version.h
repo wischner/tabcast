@@ -14,9 +14,14 @@
 
 namespace apostle {
 
-// Human readable daemon version, matching the project() version in
-// CMakeLists.txt.
-inline constexpr const char *version = "0.1.0";
+// The version a release stamps in with -DTABCAST_VERSION, and the
+// version of these sources otherwise.
+#ifndef TABCAST_VERSION
+#define TABCAST_VERSION "0.1.0"
+#endif
+
+// Human readable daemon version.
+inline constexpr const char *version = TABCAST_VERSION;
 
 // Wire protocol revision this build speaks. See docs/PROTOCOL.md.
 // Bumped only for a change that an existing peer cannot ignore.

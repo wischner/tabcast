@@ -35,8 +35,11 @@ BIN_DIR   := $(ROOT_DIR)/bin
 
 PYTHON ?= python3
 
-VERSION := $(shell $(PYTHON) -c \
+# The version to build: a release's, when the top-level Makefile passes
+# one, and manifest.json's otherwise.
+SOURCE_VERSION := $(shell $(PYTHON) -c \
     'import json; print(json.load(open("$(SRC)/manifest.json"))["version"])')
+override VERSION := $(or $(VERSION),$(SOURCE_VERSION))
 
 ICON_SIZES := 16 32 48 128
 ICONS      := $(foreach s,$(ICON_SIZES),$(SRC)/icons/icon-$(s).png)
@@ -64,7 +67,7 @@ ARCHIVE_PATTERNS := $(BIN_DIR)/$(NAME)-*.xpi \
 all: $(BUILD_DIR)/.stamp
 	@if [ ! -f "$(FIREFOX_ARCHIVE)" ] \
 	        || [ ! -f "$(CHROME_ARCHIVE)" ]; then \
-	    $(PYTHON) $(TOOLS)/build.py --src $(SRC) --out $(BUILD_DIR) \
+	    $(PYTHON) $(TOOLS)/build.py --src $(SRC) --out $(BUILD_DIR) --version $(VERSION) \
 	        --dist $(BIN_DIR) >/dev/null \
 	        && touch $(BUILD_DIR)/.stamp; \
 	fi
@@ -76,19 +79,19 @@ all: $(BUILD_DIR)/.stamp
 # something really changed.
 $(BUILD_DIR)/.stamp: $(SOURCES) $(ICONS) $(TOOLS)/build.py Makefile
 	@mkdir -p $(BUILD_DIR)
-	@$(PYTHON) $(TOOLS)/build.py --src $(SRC) --out $(BUILD_DIR) \
+	@$(PYTHON) $(TOOLS)/build.py --src $(SRC) --out $(BUILD_DIR) --version $(VERSION) \
 	    --dist $(BIN_DIR) >/dev/null
 	@touch $@
 
 ## firefox: build only the Firefox target
 firefox: $(ICONS)
-	@$(PYTHON) $(TOOLS)/build.py --src $(SRC) --out $(BUILD_DIR) \
+	@$(PYTHON) $(TOOLS)/build.py --src $(SRC) --out $(BUILD_DIR) --version $(VERSION) \
 	    --target firefox
 	@rm -f $(BUILD_DIR)/.stamp
 
 ## chrome: build only the Chrome target
 chrome: $(ICONS)
-	@$(PYTHON) $(TOOLS)/build.py --src $(SRC) --out $(BUILD_DIR) \
+	@$(PYTHON) $(TOOLS)/build.py --src $(SRC) --out $(BUILD_DIR) --version $(VERSION) \
 	    --target chrome
 	@rm -f $(BUILD_DIR)/.stamp
 

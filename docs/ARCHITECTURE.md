@@ -26,8 +26,9 @@ distributes it to every registered Disciple.
 receives frames, and renders them on the e-ink panel. Multiple
 Disciples form the flock.
 
-Disciple is an inkerface program and nothing else. inkerface
-(downloaded into `deps/inkerface/` by the build) is the e-ink platform, directly on
+Disciple is an inkerface program and nothing else. inkerface, whose
+latest release the build downloads into `deps/inkerface/` and links as
+it is, is the e-ink platform, directly on
 the FreeInk SDK: it drives the panel, buttons, Wi-Fi, and storage on
 every reader it supports, and emulates the X4 on a desktop with the
 same FreeInk renderer. Disciple uses inkerface's types directly, with no
@@ -138,12 +139,17 @@ into `bin/`. Nothing is generated beside a part's sources, which is
 what keeps `git status` clean on a fully built tree and makes
 `make clean` a complete undo of a build.
 
-Third-party code is not checked in. inkerface, stb_image, and
-PlatformIO's toolchains are downloaded into `deps/` the first time a
-build needs them, each pinned in the top-level `Makefile`, and kept
-there until `make purge`. Every build runs in the Docker image
+Third-party code is not checked in. inkerface's latest release,
+stb_image, pinned in the top-level `Makefile`, and PlatformIO's
+toolchains are downloaded into `deps/` when a build needs them, and
+kept there until `make purge`. Every build runs in the Docker image
 `docker/Dockerfile` describes, so the tools are pinned too, and a
-developer's machine needs only make, git, curl, and Docker.
+developer's machine needs only make and Docker.
+
+The GitHub pipeline, `.github/workflows/build.yml`, runs the same
+`make`. A `vX.Y.Z` tag stamps that version into all three parts and
+publishes a release of the package, the firmware, and the extension;
+run by hand, it builds and tests without releasing.
 
 ## Status
 
